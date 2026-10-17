@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Open the tool
+    url: https://lc-linkous.github.io/tinysa-web/
+    about: The live page. Try the demo first to see whether the problem needs a device to reproduce.
+  - name: Console protocol as used by the page
+    url: https://github.com/LC-Linkous/tinysa-web/blob/main/PROTOCOL.md
+    about: Commands, framing, quirks, and the list of things not yet verified on hardware.
+  - name: tinySA_python
+    url: https://github.com/LC-Linkous/tinySA_python
+    about: The Python library this page mirrors. If a command behaves differently there, say so in the issue.
+  - name: Web Serial browser support
+    url: https://caniuse.com/web-serial
+    about: Connect only works in Chrome and Edge.

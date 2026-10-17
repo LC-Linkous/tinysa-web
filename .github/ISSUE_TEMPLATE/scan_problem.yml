@@ -1,0 +1,72 @@
+name: Scan problem
+description: The page connects but sweeps fail, look wrong, or disagree with the device screen
+labels: ["scan"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the template for "it connected, but…". The **Collect diagnostic
+        sample** button on the page records exactly what the device said; please
+        attach that JSON — it answers most questions in one go.
+  - type: textarea
+    id: symptom
+    attributes:
+      label: What happened
+      description: Sweep fails / times out, trace looks wrong, numbers disagree with the device's own screen, continuous mode stalls, etc.
+    validations:
+      required: true
+  - type: dropdown
+    id: model
+    attributes:
+      label: Device
+      options:
+        - tinySA Ultra
+        - tinySA Ultra+
+        - tinySA (Basic)
+        - Other (say which below)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Firmware
+      description: The reply to `version` (shown in the status line after connecting).
+      placeholder: "tinySA4_v1.4-143-g864bb27"
+    validations:
+      required: true
+  - type: input
+    id: sweep
+    attributes:
+      label: Sweep settings
+      placeholder: "50 – 1500 MHz, 801 points, continuous"
+    validations:
+      required: true
+  - type: dropdown
+    id: cal
+    attributes:
+      label: Calibration state on the device
+      options:
+        - Calibrated (cal on) for this range
+        - Calibrated for a different range
+        - Not calibrated / cal off
+        - Not sure
+  - type: textarea
+    id: diag
+    attributes:
+      label: Diagnostic sample
+      description: Drag the `tinysa-diag-….json` file into this box.
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: Console lines
+      description: The last ~20 lines of the *Device console* panel, if the diagnostic sample doesn't cover it.
+      render: text
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and OS
+      placeholder: "Chrome 130 on Windows 11"
+    validations:
+      required: true

@@ -1,0 +1,118 @@
+// shell-link.js — the NanoVNA console protocol, transport-agnostic.
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// Send "cmd\r\n"; the device echoes the command, prints the reply, then the
+// prompt "ch>" — usually twice ("ch> \r\nch> "). Rules ported from
+// nvnapython core.py: a reply is complete when the buffer, right-trimmed, ends
+// with the prompt; then wait a short settle for the doubled prompt and drain.
+//
+// Subclasses provide _write(string) and call _feed(Uint8Array) as bytes arrive.
+
+export const PROMPT = 'ch>';
+
+export class ShellLink {
+  constructor() {
+    this.buf = new Uint8Array(0);
+    this.waiter = null;
+    this.closed = false;
+    this.dec = new TextDecoder();
+    this.enc = new TextEncoder();
+    this.onTx = null;      // (cmd) => void          — for the console view
+    this.onRx = null;      // (text, {ms}) => void   — raw reply text
+    this.onRaw = null;     // (bytes) => void        — every chunk, for debugging framing
+  }
+
+  _feed(bytes) {
+    const n = new Uint8Array(this.buf.length + bytes.length);
+    n.set(this.buf); n.set(bytes, this.buf.length); this.buf = n;
+    if (this.onRaw) this.onRaw(bytes);
+    if (this.waiter) this.waiter();
+  }
+  _take() { const b = this.buf; this.buf = new Uint8Array(0); return b; }
+  _text(b) { return this.dec.decode(b); }
+  _wait(ms) {
+    return new Promise(res => {
+      const t = setTimeout(() => { this.waiter = null; res(false); }, ms);
+      this.waiter = () => { clearTimeout(t); this.waiter = null; res(true); };
+    });
+  }
+  async _flush() { await new Promise(r => setTimeout(r, 15)); this._take(); }
+
+  /** Send a command; resolve with { body, raw, ms }. body has echo and prompts removed. */
+  async command(cmd, { timeoutMs = 6000, settleMs = 40, quiet = false } = {}) {
+    await this._flush();
+    if (this.onTx && !quiet) this.onTx(cmd);
+    const t0 = performance.now();
+    await this._write(cmd + '\r\n');
+    let last = performance.now();
+    for (;;) {
+      if (this._text(this.buf).replace(/[\s\0]+$/, '').endsWith(PROMPT)) {
+        let more = true; while (more) more = await this._wait(settleMs);
+        break;
+      }
+      const got = await this._wait(Math.max(10, timeoutMs - (performance.now() - last)));
+      if (got) last = performance.now();
+      else if (performance.now() - last >= timeoutMs) throw new Error(`no "${PROMPT}" prompt after "${cmd}" (${timeoutMs} ms)`);
+    }
+    const raw = this._text(this._take());
+    const ms = performance.now() - t0;
+    const body = ShellLink.strip(raw, cmd);
+    if (this.onRx && !quiet) this.onRx(body, { ms, raw });
+    return { body, raw, ms };
+  }
+
+  /** For commands known not to return a prompt (nvnapython: "save N" on the F V2). */
+  async commandNoPrompt(cmd, waitMs = 300) {
+    await this._flush();
+    if (this.onTx) this.onTx(cmd);
+    await this._write(cmd + '\r\n');
+    await new Promise(r => setTimeout(r, waitMs));
+    const raw = this._text(this._take());
+    const body = ShellLink.strip(raw, cmd);
+    if (this.onRx) this.onRx(body, { ms: waitMs, raw });
+    return { body, raw, ms: waitMs };
+  }
+
+  /** Binary reply: skip the echo, read exactly n bytes, swallow the trailing prompt. */
+  async commandBinary(cmd, n, { timeoutMs = 15000, quiet = false } = {}) {
+    await this._flush();
+    if (this.onTx && !quiet) this.onTx(`${cmd}  (binary, ${n} bytes)`);
+    const t0 = performance.now();
+    await this._write(cmd + '\r\n');
+    const echo = this.enc.encode(cmd + '\r\n');
+    let last = performance.now();
+    for (;;) {
+      const b = this.buf;
+      let start = 0;
+      if (b.length >= echo.length) {
+        let m = true;
+        for (let i = 0; i < echo.length; i++) if (b[i] !== echo[i]) { m = false; break; }
+        if (m) start = echo.length;
+      }
+      if (b.length - start >= n) {
+        const payload = b.slice(start, start + n);
+        let more = true; while (more) more = await this._wait(60);
+        this._take();
+        const ms = performance.now() - t0;
+        if (this.onRx && !quiet) this.onRx(`[${n} bytes]`, { ms, raw: '' });
+        return { payload, ms };
+      }
+      const got = await this._wait(Math.max(10, timeoutMs - (performance.now() - last)));
+      if (got) last = performance.now();
+      else if (performance.now() - last >= timeoutMs) throw new Error(`binary read of ${n} bytes stalled at ${b.length - start}`);
+    }
+  }
+
+  static strip(raw, cmd) {
+    const lines = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    if (lines.length && lines[0].trim() === cmd.trim()) lines.shift();                       // echo
+    while (lines.length && /^\s*(ch>)?\s*$/.test(lines[lines.length - 1])) lines.pop();        // prompts / blanks
+    return lines.map(l => l.replace(/^ch>\s*/, '')).join('\n').replace(/\s*ch>\s*$/, '');
+  }
+
+  /** Transport info for diagnostics. */
+  info() { return 'n/a'; }
+  async open() {}
+  async close() { this.closed = true; }
+  async _write(_s) { throw new Error('ShellLink._write not implemented'); }
+}

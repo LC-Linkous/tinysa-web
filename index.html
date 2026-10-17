@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<!--
+  tinySA Web — browser front end for the tinySA / tinySA Ultra
+  SPDX-License-Identifier: GPL-2.0-only
+  Copyright (C) 2026 Lauren Linkous
+  Source and license: https://github.com/LC-Linkous/tinysa-web
+  Markup only. Styles in css/, behaviour in js/ (ES modules — serve over http, not file://).
+-->
+<html lang="en" data-theme="dark" data-traces="instrument">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tinySA Web</title>
+<meta name="description" content="Sweep a tinySA or tinySA Ultra from the browser over USB: live spectrum, waterfall, max/min hold, markers with peak search, RBW and attenuation control, recording and CSV export.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>tinySA Web</h1>
+  <button class="btn primary" id="connectBtn">Connect to tinySA</button>
+  <button class="btn" id="demoBtn" aria-pressed="false">Try without hardware</button>
+  <label class="row" style="gap:6px"><span class="suffix">Model</span>
+    <select id="modelSel" aria-label="Model envelope">
+      <option value="auto">Detect from device</option>
+      <option value="TINYSA_BASIC">tinySA (Basic)</option>
+      <option value="TINYSA_ULTRA">tinySA Ultra</option>
+      <option value="TINYSA_ULTRA_PLUS">tinySA Ultra+</option>
+      <option value="TINYSA_GENERIC">Generic / other</option>
+    </select>
+  </label>
+  <span class="status" id="status"><span class="dot"></span><span id="statusText">Not connected</span></span>
+  <span class="badge rec" id="recBadge" hidden>● REC</span>
+  <button class="btn small" id="freezeBtn" aria-pressed="false" disabled title="Sends pause / resume to the device's own sweep.">Freeze device screen</button>
+  <span class="spacer"></span>
+  <nav>
+    <a href="https://github.com/LC-Linkous/tinysa-web">Source</a>
+    <a href="https://lc-linkous.github.io/">Portfolio</a>
+  </nav>
+</header>
+<p class="notice" id="noSerial" hidden>This browser can't open USB serial ports. Use <b>Chrome</b> or <b>Edge</b> on a laptop or desktop to connect. The demo works anywhere.</p>
+
+<div class="app">
+  <!-- ================================================================ sidebar -->
+  <aside class="sidebar" id="sidebar" aria-label="Controls">
+
+    <section data-section="sweep">
+      <h2><button type="button" aria-expanded="true">Sweep</button></h2>
+      <div class="body">
+        <div class="field">
+          <div class="radios row" style="gap:16px"><label><input type="radio" name="fmode" value="startstop" checked> <span>Start / stop</span></label><label><input type="radio" name="fmode" value="centerspan"> <span>Center / span</span></label></div>
+        </div>
+        <div class="two-col" id="fStartStop">
+          <div class="field"><label for="fStart">Start</label><div class="row"><input type="number" id="fStart" value="1" min="0" step="any"><span class="suffix">MHz</span></div></div>
+          <div class="field"><label for="fStop">Stop</label><div class="row"><input type="number" id="fStop" value="960" min="0" step="any"><span class="suffix">MHz</span></div></div>
+        </div>
+        <div class="two-col" id="fCenterSpan" hidden>
+          <div class="field"><label for="fCenter">Center</label><div class="row"><input type="number" id="fCenter" value="433.92" min="0" step="any"><span class="suffix">MHz</span></div></div>
+          <div class="field"><label for="fSpan">Span</label><div class="row"><input type="number" id="fSpan" value="10" min="0.001" step="any"><span class="suffix">MHz</span></div></div>
+        </div>
+        <div class="field">
+          <span class="label">Points</span>
+          <div class="radios stack">
+            <label><input type="radio" name="pts" value="max" checked> <span>Model maximum (<span id="ptsMaxLabel">450</span>)</span></label>
+            <label><input type="radio" name="pts" value="quick"> <span>Quick, for continuous (<span id="ptsQuickLabel">200</span>)</span></label>
+            <label><input type="radio" name="pts" value="custom"> <span>Custom <input type="number" id="ptsCustom" value="450" min="3" step="1"></span></label>
+          </div>
+        </div>
+        <div class="field">
+          <span class="label">Acquisition</span>
+          <div class="radios stack">
+            <label><input type="radio" name="method" value="scan" checked> <span><code>scan</code> — text, frequency + level per line</span></label>
+            <label><input type="radio" name="method" value="scanraw"> <span><code>scanraw</code> — binary, faster, no device screen update</span></label>
+          </div>
+        </div>
+        <div class="stack" style="margin-top:12px">
+          <button class="btn primary block" id="singleBtn" disabled>Single sweep</button>
+          <button class="btn block" id="contBtn" disabled aria-pressed="false">Continuous</button>
+        </div>
+        <div class="tools" style="margin-top:12px">
+          <button class="btn small" id="devSweepBtn" disabled title="Copy the device's own start/stop/points into these fields">Use device sweep</button>
+          <button class="btn small" id="devDataBtn" disabled title="Read what the device is showing (frequencies + data 0) without starting a new scan">Read device trace</button>
+        </div>
+        <dl class="kv">
+          <dt>Last sweep</dt><dd id="sweepTime">—</dd>
+          <dt>Device range</dt><dd id="devRange">—</dd>
+          <dt>Device sweep</dt><dd id="devWas">—</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section data-section="levels" id="levelsSection">
+      <h2><button type="button" aria-expanded="false">Levels</button></h2>
+      <div class="body">
+        <p class="hint" style="margin:0 0 8px">Sent to the device as you change them. The console has no query for these, so the page shows what it last sent, not what the device has.</p>
+        <div class="two-col">
+          <div class="field"><label for="rbwSel">RBW</label><select id="rbwSel" style="width:100%"><option value="auto">auto</option></select></div>
+          <div class="field"><label for="attSel">Attenuation</label><select id="attSel" style="width:100%"><option value="auto">auto</option><option>0</option><option>5</option><option>10</option><option>15</option><option>20</option><option>25</option><option>30</option></select></div>
+        </div>
+        <div class="stack">
+          <label class="row check"><input type="checkbox" id="lnaChk"> <span>LNA on (Ultra)</span></label>
+          <label class="row check"><input type="checkbox" id="spurChk"> <span>Spur removal</span></label>
+        </div>
+        <div class="field" style="margin-top:10px"><label for="calcSel">Device trace math (<code>calc</code>)</label>
+          <select id="calcSel" style="width:100%"><option value="off">off</option><option value="minh">min hold</option><option value="maxh">max hold</option><option value="maxd">max decay</option><option value="aver4">average 4</option><option value="aver16">average 16</option><option value="quasip">quasi-peak</option></select>
+          <p class="hint">Applies on the device, so it affects what <code>scan</code> returns. The page has its own max/min/average above the plot that don't touch the device.</p></div>
+        <div class="field"><label for="extGain">External gain / loss</label>
+          <div class="row"><input type="number" id="extGain" value="0" min="-100" max="100" step="0.1"><span class="suffix">dB</span><button class="btn small" id="extGainBtn">Set</button></div>
+          <p class="hint">Negative for an attenuator in front of the input, positive for a preamp. <code>ext_gain</code>.</p></div>
+        <p class="hint" id="levelsStatus"></p>
+      </div>
+    </section>
+
+    <section data-section="recording">
+      <h2><button type="button" aria-expanded="false">Recording</button></h2>
+      <div class="body">
+        <p class="hint" style="margin:0 0 8px">While recording, every sweep (single or continuous) is kept with a timestamp. Works in any view.</p>
+        <div class="stack">
+          <button class="btn primary block" id="recBtn" aria-pressed="false">Start recording</button>
+        </div>
+        <dl class="kv">
+          <dt>Sweeps</dt><dd id="recSweeps">0</dd>
+          <dt>Size</dt><dd id="recSize">0 kB</dd>
+        </dl>
+        <span class="label group">Save</span>
+        <div class="tools">
+          <button class="btn small" id="recWfBtn" disabled title="One row per sweep, one column per frequency, level in dBm">Waterfall CSV</button>
+          <button class="btn small" id="recSweepsBtn" disabled title="One row per sweep point">Sweep log CSV</button>
+          <button class="btn small" id="recJsonBtn" disabled>Everything (JSON)</button>
+          <button class="btn small" id="recClearBtn" disabled>Clear</button>
+        </div>
+        <p class="hint">The waterfall CSV matches the plot: timestamps down, frequencies across — the same shape <code>plotting_waterfall_static.py</code> builds. The sweep log is the long format for pandas.</p>
+      </div>
+    </section>
+
+    <section data-section="export">
+      <h2><button type="button" aria-expanded="false">Export</button></h2>
+      <div class="body">
+        <div class="tools">
+          <button class="btn small" id="csvBtn" disabled>CSV</button>
+          <button class="btn small" id="pngBtn" disabled>Plot PNG</button>
+          <button class="btn small" id="shotBtn" disabled title="Reads the device's own screen over USB">Device screenshot</button>
+        </div>
+        <p class="hint">CSV is <code>Frequency_Hz,Signal_Strength_dBm</code>, the layout of tsapython's <code>save_scan_csv.py</code>, so files from either tool load in the other.</p>
+      </div>
+    </section>
+
+    <section data-section="session">
+      <h2><button type="button" aria-expanded="false">Session &amp; compare</button></h2>
+      <div class="body">
+        <span class="label">Session</span>
+        <div class="tools">
+          <button class="btn small" id="sessSave" disabled>Save session</button>
+          <button class="btn small" id="sessLoad">Load session</button>
+        </div>
+        <p class="hint">Sweep, held trace, overlay, markers and settings as one JSON file.</p>
+        <span class="label group">Compare</span>
+        <div class="tools">
+          <button class="btn small" id="ovlLoad">Load CSV overlay</button>
+          <button class="btn small" id="ovlClear" disabled>Clear overlay</button>
+        </div>
+        <p class="hint" id="ovlName">No overlay loaded. A loaded <code>frequency,dBm</code> CSV is drawn dotted under the live trace; toggle it in Settings.</p>
+      </div>
+    </section>
+
+    <section data-section="diagnostics">
+      <h2><button type="button" aria-expanded="false">Diagnostics</button></h2>
+      <div class="body">
+        <p class="hint" style="margin:0 0 8px">Records the raw replies to a fixed set of commands, with timings, into a file to attach to a bug report. Includes one small <code>scanraw</code> frame as hex so the binary framing can be checked. Changes nothing on the device.</p>
+        <div class="tools">
+          <button class="btn small primary" id="diagBtn" disabled>Collect sample</button>
+          <button class="btn small" id="diagDlBtn" disabled>Download JSON</button>
+        </div>
+        <div class="diag-out" id="diagOut" hidden></div>
+      </div>
+    </section>
+
+    <section data-section="tools" id="toolsSection">
+      <h2><button type="button" aria-expanded="false">Device tools</button></h2>
+      <div class="body">
+        <div class="tools">
+          <button class="btn small" id="vbatRead" disabled>Battery &amp; status</button>
+          <button class="btn small" id="touchCal" disabled>Touch calibration</button>
+          <button class="btn small" id="touchTest" disabled>Touch test</button>
+        </div>
+        <div class="field" style="margin-top:10px"><label for="calOutSel">Calibration output</label>
+          <div class="row"><select id="calOutSel" style="width:100%"><option value="off">off</option><option>30</option><option>15</option><option>10</option><option>4</option><option>3</option><option>2</option><option>1</option></select><span class="suffix">MHz</span><button class="btn small" id="calOutBtn" disabled>Set</button></div>
+          <p class="hint">The reference square wave on the CAL connector (<code>caloutput</code>) — handy for checking level accuracy with a cable to the input.</p></div>
+        <p class="hint" id="toolsStatus"></p>
+      </div>
+    </section>
+
+    <section data-section="settings">
+      <h2><button type="button" aria-expanded="false">Settings</button></h2>
+      <div class="body">
+        <form id="settingsForm">
+          <div class="field"><span class="label">Theme</span>
+            <div class="radios row" style="gap:16px"><label><input type="radio" name="theme" value="dark"> <span>Dark</span></label><label><input type="radio" name="theme" value="light"> <span>Light</span></label></div></div>
+          <div class="field"><span class="label">Trace colours</span>
+            <div class="radios stack"><label><input type="radio" name="traces" value="instrument"> <span>Instrument (yellow, magenta max, cyan min)</span></label><label><input type="radio" name="traces" value="blueamber"> <span>Blue / amber / green</span></label></div></div>
+          <div class="two-col">
+            <div class="field"><label for="refDbm">Reference level</label>
+              <select id="refDbm" name="refDbm" style="width:100%"><option value="20">+20 dBm</option><option value="10">+10 dBm</option><option value="0">0 dBm</option><option value="-10">−10 dBm</option><option value="-20">−20 dBm</option><option value="-30">−30 dBm</option><option value="-40">−40 dBm</option></select></div>
+            <div class="field"><label for="floorDbm">Floor</label>
+              <select id="floorDbm" name="floorDbm" style="width:100%"><option value="-80">−80 dBm</option><option value="-90">−90 dBm</option><option value="-100">−100 dBm</option><option value="-110">−110 dBm</option><option value="-120">−120 dBm</option><option value="-130">−130 dBm</option></select></div>
+          </div>
+          <p class="hint" style="margin-top:-4px">The level axis and the waterfall colour range.</p>
+          <div class="field"><label for="paletteSel">Waterfall palette</label><select id="paletteSel" name="palette" style="width:100%"></select><span class="palette-swatch"></span></div>
+          <div class="field"><label for="avgCount">Page-side average depth</label><div class="row"><input type="number" id="avgCount" name="avgCount" value="8" min="2" max="64" step="1"><span class="suffix">sweeps</span></div></div>
+          <div class="field"><label for="scaleOverride">scanraw scale factor</label><div class="row"><input type="number" id="scaleOverride" name="scaleOverride" placeholder="by model (174 Ultra, 128 Basic)" step="any"></div>
+            <p class="hint">dBm = value ÷ 32 − scale. Leave blank unless a diagnostic sample shows the binary levels offset from the text ones.</p></div>
+
+          <span class="label group">Compare</span>
+          <div class="stack">
+            <label class="row check"><input type="checkbox" name="overlayShow"> <span>Draw the loaded overlay</span></label>
+          </div>
+
+          <span class="label group">Device</span>
+          <div class="stack">
+            <label class="row check"><input type="checkbox" name="resumeOnDisconnect"> <span>Send <code>resume</code> and restore the device sweep on disconnect</span></label>
+          </div>
+
+          <span class="label group">Debugging</span>
+          <label class="row check"><input type="checkbox" name="rawBytes"> <span>Echo raw received chunks in the console</span></label>
+        </form>
+      </div>
+    </section>
+  </aside>
+  <div class="sidebar-handle" id="sidebarHandle" title="Drag to resize the sidebar"></div>
+
+  <!-- ================================================================ main -->
+  <main class="main">
+    <div class="plot-area">
+      <div class="chart-head">
+        <div class="views" role="group" aria-label="View">
+          <button class="btn small" data-view="spectrum" aria-pressed="true">Spectrum</button>
+          <button class="btn small" data-view="waterfall" aria-pressed="false">Waterfall</button>
+        </div>
+        <div class="tools" role="group" aria-label="Trace math">
+          <button class="btn small" id="maxBtn" aria-pressed="false" title="Keep the highest level seen at each frequency (page-side)">Max hold</button>
+          <button class="btn small" id="minBtn" aria-pressed="false" title="Keep the lowest level seen at each frequency (page-side)">Min hold</button>
+          <button class="btn small" id="avgBtn" aria-pressed="false" title="Power average over the last N sweeps (page-side)">Average</button>
+          <button class="btn small" id="holdBtn" aria-pressed="false" title="Keep the current trace on screen for comparison">Hold</button>
+          <button class="btn small" id="clearBtn" disabled>Clear</button>
+        </div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="chart-wrap" id="chartWrap">
+        <canvas id="plot" role="img" aria-label="Spectrum plot"></canvas>
+        <div class="tip" id="tip"></div>
+      </div>
+    </div>
+
+    <section class="markers-panel" aria-label="Markers">
+      <div class="head">
+        <h2>Markers</h2>
+        <button class="btn small" id="peakBtn" disabled>Mark peak</button>
+        <button class="btn small" id="peaksBtn" disabled title="Highest local maxima, at least 10 dB above the sweep median">Mark top 4 peaks</button>
+        <button class="btn small" id="syncMarkersBtn" disabled title="Writes the markers to the device's own markers by frequency (marker N {Hz})">Send first 4 to device</button>
+        <button class="btn small" id="clearMarkersBtn" disabled>Clear</button>
+        <span class="hint">Click the plot to place one (up to 6). Δ columns are relative to marker 1.</span>
+        <span class="hint" id="markerStatus" style="margin-left:auto"></span>
+      </div>
+      <div class="markers-wrap">
+        <table class="markers" id="markerTable">
+          <thead><tr><th>#</th><th>Frequency</th><th>Level dBm</th><th>Max hold</th><th>Δ level dB</th><th>Δ freq</th><th></th></tr></thead>
+          <tbody id="markerBody"></tbody>
+        </table>
+        <p class="hint" id="markerEmpty">No markers yet.</p>
+      </div>
+    </section>
+
+    <section class="console" id="console" aria-label="Device console">
+      <div class="handle" id="conHandle" title="Drag to resize"></div>
+      <div class="bar">
+        <h2>Device console</h2>
+        <label>Log <select id="conDlMode"><option value="full">commands + replies</option><option value="cmd">commands only</option></select></label>
+        <button class="btn small" id="conDl" type="button">Download</button>
+        <button class="btn small" id="conCopy" type="button">Copy</button>
+        <button class="btn small" id="conClear" type="button">Clear</button>
+      </div>
+      <div class="log" id="log" aria-live="polite"></div>
+      <form class="log-send" id="sendForm">
+        <input id="sendInput" type="text" placeholder="Type a command, e.g. help  (↑ ↓ for history)" autocomplete="off" disabled>
+        <button class="btn" type="submit" disabled>Send</button>
+      </form>
+    </section>
+  </main>
+</div>
+
+<footer>
+  tinySA Web <span id="appVersion"></span> · Last updated <time id="updated" datetime="2026-10-17">2026-10-17</time> · Works in Chrome and Edge via Web Serial. <a href="https://github.com/LC-Linkous/tinysa-web/blob/main/LICENSE">GPL-2.0</a>.
+  Maintained by <a href="https://github.com/LC-Linkous">LC Linkous</a>. Companion to <a href="https://github.com/LC-Linkous/tinySA_python">tinySA_python</a>. Not affiliated with the tinySA project or its makers.
+</footer>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
