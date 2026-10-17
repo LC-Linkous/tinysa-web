@@ -1,0 +1,2 @@
+# tinysa-web
+[public]
