@@ -32,7 +32,7 @@ export function renderWaterfall(ctx, W, H, sweep, history, markers, hover, lut, 
   }
   ctx.strokeStyle = cssVar('--axis'); ctx.strokeRect(pad.l, wfTop, pw, wfH);
   ctx.fillStyle = cssVar('--ink-2'); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  const fs = niceStep(sweep.stop - sweep.start, 8);
+  const fs = niceStep(sweep.stop - sweep.start, Math.max(3, Math.floor(pw / 90)));
   for (let f = Math.ceil(sweep.start / fs) * fs; f <= sweep.stop + 1; f += fs) ctx.fillText(fmtAxis(f), sx(f), wfTop + wfH + 6);
   ctx.save(); ctx.translate(14, wfTop + wfH / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(`${history.length} sweeps, newest at top`, 0, 0); ctx.restore();
   markers.forEach((mf, k) => { const i = nearestIndex(sweep.f, mf); drawMarkerGlyph(ctx, sx(sweep.f[i]), sy(sweep.dbm[i]), k + 1); });

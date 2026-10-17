@@ -11,7 +11,7 @@ install.
 The page has a *Try without hardware* mode with a simulated tinySA Ultra, so it
 can be previewed anywhere.
 
-<p align="center"><img src="media/screenshot.png" alt="tinySA Web in demo mode: docked sidebar with sweep controls on the left, spectrum trace with max hold and four numbered peak markers on the dark plot surface, markers table and device console below" width="900"></p>
+<p align="center"><img src="media/screenshot.png" alt="tinySA Web in demo mode with four windows: spectrum with max hold and numbered peak markers, waterfall, peak history, and the generator readout; sidebar with sweep controls on the left, markers table below" width="900"></p>
 
 This is the browser companion to the
 [tinySA_python](https://github.com/LC-Linkous/tinySA_python) library
@@ -85,31 +85,37 @@ connection (or the Python script) before starting the other.
 ## Layout
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│ tinySA Web       [Connect] [Demo]  Model ▾   ● status         │
-├────────────┬─────────────────────────────────────────────────┤
-│ Sweep      │  Spectrum Waterfall   Max Min Avg  Hold  Clear  │
-│  start/stop│                                                 │
-│  or ctr/spn│                    plot                         │
-│  points    │                                                 │
-│  scan /raw │                                                 │
-│  [Single]  │                                                 │
-│  [Contin.] │                                                 │
-│ ────────── ├─────────────────────────────────────────────────┤
-│ Levels     │  Markers [peak] [top 4] [send to device]        │
-│  rbw atten │  # freq level max Δlevel Δfreq                  │
-│  lna spur  ├─────────────────────────────────────────────────┤
-│  calc gain │  Console ▲ (drag to resize)   Log ▾ [⤓][copy]   │
-│ ────────── │  > version                                      │
-│ Recording  │  tinySA4_v1.4-143-g864bb27                      │
-│ Export     │  > scan 1000000 960000000 450 3                 │
-│ Session    │  … 450 lines (1420 ms)                          │
-│ Diagnostics│  ┌──────────────────────────────────┐ [Send]    │
-│ Device     │  │ type a command                   │           │
-│  tools     │                                                 │
-│ Settings   │                                                 │
-└────────────┴─────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ tinySA Web  [Connect] [Demo]  Model ▾  [Analyzer|Generator]      │
+│             ● status   4.11 V · resumed   [Freeze device screen]  │
+├────────────┬─────────────────────────────────────────────────────┤
+│ Sweep      │ Windows [1][2][4]   Smooth  Max  Min  Avg  Hold  Clr │
+│  start/stop│ ┌ Spectrum ─────────────┐ ┌ Waterfall ───────────┐   │
+│  or ctr/spn│ │                       │ │                      │   │
+│  points    │ │        trace          │ │       history        │   │
+│  scan /raw │ │                       │ │                      │   │
+│  [Single]  │ └───────────────────────┘ └──────────────────────┘   │
+│  [Contin.] │ ┌ Peak history ─────────┐ ┌ Generator ───────────┐   │
+│ ────────── │ │ level / freq vs sweep │ │ 433.92 MHz  −20 dBm  │   │
+│ Levels     │ │                       │ │ nominal output       │   │
+│  rbw atten │ └───────────────────────┘ └──────────────────────┘   │
+│  lna spur  ├─────────────────────────────────────────────────────┤
+│  calc gain │ Markers [peak] [top 4] [send] [ask device]          │
+│ ────────── │ # freq* level max −3dB BW Δlevel Δfreq              │
+│ Generator  │ band power M1–M2 …                                  │
+│  (TX mode) ├─────────────────────────────────────────────────────┤
+│ Recording  │ Console ▲ (drag to resize)      Log ▾ [⤓][copy]     │
+│ Export     │ > scan 1000000 960000000 450 3                      │
+│ Session    │ … 450 lines (1420 ms)                               │
+│ Diagnostics│ ┌──────────────────────────────────┐ [Send]         │
+│ Dev. tools │ │ type a command                   │                │
+│ Settings   │                                                     │
+└────────────┴─────────────────────────────────────────────────────┘
 ```
+
+Each window has its own view tabs; *Windows 1 / 2 / 4* sets how many. The
+top-bar **Analyzer / Generator** tabs switch the device between input and
+output mode and the sidebar shows only the sections that apply.
 
 The sidebar is an accordion — click a header to open it, click again to
 collapse; the choice is remembered. Drag its right edge to resize it
@@ -117,24 +123,41 @@ collapse; the choice is remembered. Drag its right edge to resize it
 the console so it has the full width. On narrow screens the sidebar stacks
 above the plot.
 
-## What it does (v0.1)
+## What it does (v0.2)
 
 - **Sweep** — start/stop or center/span in MHz, points by model maximum /
   quick / custom, single or continuous. Two acquisition paths: `scan` (text,
   frequency + level per line, the device screen keeps updating) or `scanraw`
   (binary, about 3× faster, the device screen freezes until the page sends
   `resume`, which it does after a single sweep and when continuous stops).
-- **Views** — spectrum (dBm vs frequency) and waterfall (rolling level
-  history, colour range = the level axis).
+- **Views, in 1 / 2 / 4 windows** — spectrum (dBm vs frequency, with a
+  dashed noise-floor line at the sweep median), waterfall (rolling level
+  history, colour range = the level axis), peak history (peak level and peak
+  frequency over successive sweeps — the third panel of
+  `plotting_waterfall_realtime.py`), and the generator readout.
 - **Trace math on the page** — max hold, min hold, power average over the
-  last N sweeps (depth in Settings), and *Hold* to freeze a copy for
-  comparison. These never touch the device. The device's own `calc` modes are
-  in the Levels section if you want them applied before the data leaves it.
-- **Markers** — click to place up to six; each shows frequency, level, the
-  max-hold level, and Δ level / Δ frequency from marker 1. *Mark peak* finds
-  the highest point; *Mark top 4 peaks* finds the four highest local maxima
-  at least 10 dB over the sweep median; *Send first 4 to device* writes them
-  to the instrument's own markers by frequency (`marker N {Hz}`).
+  last N sweeps (depth in Settings), display smoothing (median 5 or mean 5,
+  from `filtering_scan_artifacts.py`; the recording keeps raw data), and
+  *Hold* to freeze a copy for comparison. These never touch the device. The
+  device's own `calc` modes are in the Levels section if you want them
+  applied before the data leaves it.
+- **Markers** — click to place up to six; each shows frequency (parabolic
+  interpolation between bins when it sits on a peak, marked *), level, the
+  max-hold level, −3 dB bandwidth, and Δ level / Δ frequency from marker 1.
+  With two or more markers the band power between markers 1 and 2 is shown.
+  *Mark peak* finds the highest point; *Mark top 4 peaks* finds the four
+  highest local maxima at least 10 dB over the sweep median; *Send first 4 to
+  device* writes them to the instrument's own markers by frequency
+  (`marker N {Hz}`); *Ask device for peak* runs the instrument's own peak
+  search (`marker 1 peak`), reads its markers back, draws them as hollow
+  glyphs and shows the difference from the page's peak.
+- **Generator mode** — the top-bar tab puts the device in output mode
+  (`mode low|high output`); the Generator section sets frequency
+  (`sweep cw`), level (`level`), modulation (`modulation`) and turns the
+  output on or off. The Generator window shows the nominal output as
+  commanded — the tinySA cannot measure its own output, so this is a picture
+  of the settings, not a measurement. Switching back to Analyzer turns the
+  output off and returns the device to input mode.
 - **Levels** — RBW (model-specific list, or auto), attenuation, LNA (Ultra),
   spur removal, the device's trace math (`calc`), external gain/loss
   (`ext_gain`). Sent as you change them; the console has no query form for
@@ -153,9 +176,16 @@ above the plot.
 - **Diagnostics** — one button runs a fixed set of commands, records raw
   replies and timings (plus one small `scanraw` frame as hex), and downloads
   a JSON to attach to an issue. This is how the page gets validated against
-  hardware it hasn't seen yet.
+  hardware it hasn't seen yet. A second button runs `scan` and `scanraw` on
+  the same range and reports the offset between them (what
+  `plotting_scanraw.py` plots) — a constant offset means the scale factor is
+  wrong for that firmware, and the page can apply the suggested value.
+- **Top bar** — battery voltage and paused/resumed state (`vbat`, `status`),
+  refreshed every 30 s.
 - **Device tools** — battery and status readback, touch calibration, touch
-  test, and the calibration-output reference signal (`caloutput`).
+  test, the calibration-output reference signal (`caloutput`), and a
+  read-only dump of the device's calibration state (`freq_corr`,
+  `actual_freq`, `zero`, `vbat_offset`).
 - **Console** — the raw serial exchange with a resizable drawer, command
   history (↑ ↓), long replies collapsed, copy button, and a log download
   (commands only, or commands + replies, timestamped).
@@ -167,10 +197,9 @@ above the plot.
   the page hasn't seen; overlay on/off; resume-on-disconnect; raw-byte echo
   for debugging framing. All remembered in the browser.
 
-Not yet: signal-generator panel (`output`, `level`, `modulation`), zero-span
-level meter (`sweep cw`), SD-card browser (`sd_list` / `sd_read`), trigger
-setup. Each is a sidebar section away; the device layer already has room for
-them.
+Not yet: zero-span level meter, SD-card browser (`sd_list` / `sd_read`),
+trigger setup, generator frequency sweeps. Each is a sidebar section away;
+the device layer already has room for them.
 
 ## Supported hardware
 
@@ -200,7 +229,8 @@ much of that codebase is actually generic. Result, by file:
 | `js/device/serial-link.js` — Web Serial transport | `js/sa.js` (was `rf.js`) — dBm math, peak finding, holds |
 | `js/plot/common.js`, `js/plot/palettes.js` | `js/plot/spectrum.js`, `waterfall.js` (was `rect.js`, `smith.js`, `waterfall.js`) |
 | `js/ui/sidebar.js`, `js/ui/console.js` | `js/ui/settings.js`, `recorder.js`, `export.js`, `session.js`, `diagnostics.js`, `devicetools.js` |
-| `css/layout.css`, `css/components.css` | `js/ui/levels.js` (new; replaces `calibration.js`, `cw.js`) |
+| `css/layout.css`, `css/components.css` | `js/ui/levels.js`, `generator.js`, `panes.js` (new; replace `calibration.js`, `cw.js`) |
+| | `js/plot/peakhist.js`, `css/panes.css` (new) |
 | `.github/workflows/pages.yml`, `LICENSE`, `CODE_OF_CONDUCT.md` | `css/theme.css` — only the trace-colour block differs |
 | | `index.html`, `js/main.js` |
 
@@ -222,6 +252,7 @@ css/
   theme.css                colour tokens: dark/light themes, trace colour schemes
   layout.css               top bar, docked sidebar, plot, console drawer
   components.css           buttons, inputs, tables
+  panes.css                the 1 / 2 / 4 window grid and the mode tabs (this repo only)
 js/
   main.js                  app state + wiring
   sa.js                    pure math: formatting, peak search, hold/average helpers
@@ -232,10 +263,11 @@ js/
     models.js              per-model envelopes, detectModel()
     tinysa.js              TinySA class — method names mirror tsapython
   plot/
-    spectrum.js  waterfall.js  palettes.js  common.js
+    spectrum.js  waterfall.js  peakhist.js  palettes.js  common.js
   ui/
-    sidebar.js  console.js  settings.js  diagnostics.js  export.js
-    levels.js  session.js  devicetools.js  recorder.js
+    sidebar.js  console.js  panes.js  settings.js  diagnostics.js
+    export.js  levels.js  generator.js  session.js  devicetools.js
+    recorder.js
 ```
 
 `js/device/` is the part another tool would reuse: `main.js` calls

@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="css/theme.css">
 <link rel="stylesheet" href="css/layout.css">
 <link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/panes.css">
 </head>
 <body>
 
@@ -33,7 +34,12 @@
       <option value="TINYSA_GENERIC">Generic / other</option>
     </select>
   </label>
+  <div class="views mode-tabs" role="tablist" aria-label="Device mode">
+    <button class="btn small" id="modeRx" role="tab" aria-pressed="true">Analyzer</button>
+    <button class="btn small" id="modeTx" role="tab" aria-pressed="false" disabled title="Puts the device in output mode (mode low|high output)">Generator</button>
+  </div>
   <span class="status" id="status"><span class="dot"></span><span id="statusText">Not connected</span></span>
+  <span class="badge" id="battBadge" hidden title="vbat and status, read every 30 s">—</span>
   <span class="badge rec" id="recBadge" hidden>● REC</span>
   <button class="btn small" id="freezeBtn" aria-pressed="false" disabled title="Sends pause / resume to the device's own sweep.">Freeze device screen</button>
   <span class="spacer"></span>
@@ -48,7 +54,7 @@
   <!-- ================================================================ sidebar -->
   <aside class="sidebar" id="sidebar" aria-label="Controls">
 
-    <section data-section="sweep">
+    <section data-section="sweep" data-mode="rx">
       <h2><button type="button" aria-expanded="true">Sweep</button></h2>
       <div class="body">
         <div class="field">
@@ -93,7 +99,7 @@
       </div>
     </section>
 
-    <section data-section="levels" id="levelsSection">
+    <section data-section="levels" data-mode="rx" id="levelsSection">
       <h2><button type="button" aria-expanded="false">Levels</button></h2>
       <div class="body">
         <p class="hint" style="margin:0 0 8px">Sent to the device as you change them. The console has no query for these, so the page shows what it last sent, not what the device has.</p>
@@ -115,7 +121,25 @@
       </div>
     </section>
 
-    <section data-section="recording">
+    <section data-section="generator" data-mode="tx" id="genSection">
+      <h2><button type="button" aria-expanded="false">Generator</button></h2>
+      <div class="body">
+        <p class="hint" style="margin:0 0 8px">Signal-generator output. Frequency is sent as <code>sweep cw</code>, level as <code>level</code>, modulation as <code>modulation</code>; the big button sends <code>output on|off</code>. Switching back to Analyzer turns the output off.</p>
+        <div class="two-col">
+          <div class="field"><label for="genBand">Band</label><select id="genBand" style="width:100%"><option value="low">low (≤ 800 MHz)</option><option value="high">high</option></select></div>
+          <div class="field"><label for="genFreq">Frequency</label><div class="row"><input type="number" id="genFreq" value="433.92" min="0.1" step="any"><span class="suffix">MHz</span></div></div>
+        </div>
+        <div class="field"><label for="genLevel">Level <span class="suffix"><span id="genLevelOut">-20</span> dBm</span></label>
+          <input type="range" id="genLevel" min="-76" max="13" step="1" value="-20" style="width:100%"></div>
+        <div class="field"><label for="genMod">Modulation</label>
+          <select id="genMod" style="width:100%"><option value="off">off (CW)</option><option value="AM_1kHz">AM 1 kHz</option><option value="AM_10Hz">AM 10 Hz</option><option value="NFM">NFM</option><option value="WFM">WFM</option><option value="extern">extern</option></select></div>
+        <div class="stack" style="margin-top:12px"><button class="btn block" id="genOnBtn" aria-pressed="false">Output off — click to start</button></div>
+        <p class="hint" id="genStatus"></p>
+        <p class="hint">Level range −76 … +13 dBm is the library's check; the device clips to what the band allows.</p>
+      </div>
+    </section>
+
+    <section data-section="recording" data-mode="rx">
       <h2><button type="button" aria-expanded="false">Recording</button></h2>
       <div class="body">
         <p class="hint" style="margin:0 0 8px">While recording, every sweep (single or continuous) is kept with a timestamp. Works in any view.</p>
@@ -137,7 +161,7 @@
       </div>
     </section>
 
-    <section data-section="export">
+    <section data-section="export" data-mode="rx">
       <h2><button type="button" aria-expanded="false">Export</button></h2>
       <div class="body">
         <div class="tools">
@@ -149,7 +173,7 @@
       </div>
     </section>
 
-    <section data-section="session">
+    <section data-section="session" data-mode="rx">
       <h2><button type="button" aria-expanded="false">Session &amp; compare</button></h2>
       <div class="body">
         <span class="label">Session</span>
@@ -167,7 +191,7 @@
       </div>
     </section>
 
-    <section data-section="diagnostics">
+    <section data-section="diagnostics" data-mode="all">
       <h2><button type="button" aria-expanded="false">Diagnostics</button></h2>
       <div class="body">
         <p class="hint" style="margin:0 0 8px">Records the raw replies to a fixed set of commands, with timings, into a file to attach to a bug report. Includes one small <code>scanraw</code> frame as hex so the binary framing can be checked. Changes nothing on the device.</p>
@@ -176,17 +200,26 @@
           <button class="btn small" id="diagDlBtn" disabled>Download JSON</button>
         </div>
         <div class="diag-out" id="diagOut" hidden></div>
+        <span class="label group">scanraw scale check</span>
+        <p class="hint" style="margin:0 0 6px">Runs <code>scan</code> and <code>scanraw</code> on the current range and compares them (what <code>plotting_scanraw.py</code> plots). A constant offset means the scale factor is wrong for this firmware.</p>
+        <div class="tools">
+          <button class="btn small" id="scaleChkBtn" disabled>Check</button>
+          <button class="btn small" id="scaleApplyBtn" disabled>Apply suggested scale</button>
+        </div>
+        <p class="hint" id="scaleOut"></p>
       </div>
     </section>
 
-    <section data-section="tools" id="toolsSection">
+    <section data-section="tools" data-mode="all" id="toolsSection">
       <h2><button type="button" aria-expanded="false">Device tools</button></h2>
       <div class="body">
         <div class="tools">
           <button class="btn small" id="vbatRead" disabled>Battery &amp; status</button>
           <button class="btn small" id="touchCal" disabled>Touch calibration</button>
           <button class="btn small" id="touchTest" disabled>Touch test</button>
+          <button class="btn small" id="calStateBtn" disabled title="freq_corr, actual_freq, zero, vbat_offset — read only">Calibration state</button>
         </div>
+        <dl class="kv" id="calState" hidden></dl>
         <div class="field" style="margin-top:10px"><label for="calOutSel">Calibration output</label>
           <div class="row"><select id="calOutSel" style="width:100%"><option value="off">off</option><option>30</option><option>15</option><option>10</option><option>4</option><option>3</option><option>2</option><option>1</option></select><span class="suffix">MHz</span><button class="btn small" id="calOutBtn" disabled>Set</button></div>
           <p class="hint">The reference square wave on the CAL connector (<code>caloutput</code>) — handy for checking level accuracy with a cable to the input.</p></div>
@@ -194,7 +227,7 @@
       </div>
     </section>
 
-    <section data-section="settings">
+    <section data-section="settings" data-mode="all">
       <h2><button type="button" aria-expanded="false">Settings</button></h2>
       <div class="body">
         <form id="settingsForm">
@@ -236,11 +269,14 @@
   <main class="main">
     <div class="plot-area">
       <div class="chart-head">
-        <div class="views" role="group" aria-label="View">
-          <button class="btn small" data-view="spectrum" aria-pressed="true">Spectrum</button>
-          <button class="btn small" data-view="waterfall" aria-pressed="false">Waterfall</button>
+        <div class="views" role="group" aria-label="Windows">
+          <span class="suffix" style="align-self:center">Windows</span>
+          <button class="btn small" data-layout="1" aria-pressed="true" title="One window">1</button>
+          <button class="btn small" data-layout="2" aria-pressed="false" title="Two windows, stacked">2</button>
+          <button class="btn small" data-layout="4" aria-pressed="false" title="Four windows">4</button>
         </div>
         <div class="tools" role="group" aria-label="Trace math">
+          <button class="btn small" id="smoothBtn" aria-pressed="false" title="Display smoothing: median 5 removes the firmware's ':' spikes, mean 5 lowers noise. Recording keeps the raw data.">Smooth: off</button>
           <button class="btn small" id="maxBtn" aria-pressed="false" title="Keep the highest level seen at each frequency (page-side)">Max hold</button>
           <button class="btn small" id="minBtn" aria-pressed="false" title="Keep the lowest level seen at each frequency (page-side)">Min hold</button>
           <button class="btn small" id="avgBtn" aria-pressed="false" title="Power average over the last N sweeps (page-side)">Average</button>
@@ -249,10 +285,7 @@
         </div>
       </div>
       <div class="legend" id="legend"></div>
-      <div class="chart-wrap" id="chartWrap">
-        <canvas id="plot" role="img" aria-label="Spectrum plot"></canvas>
-        <div class="tip" id="tip"></div>
-      </div>
+      <div class="panes" id="panes"></div>
     </div>
 
     <section class="markers-panel" aria-label="Markers">
@@ -261,16 +294,18 @@
         <button class="btn small" id="peakBtn" disabled>Mark peak</button>
         <button class="btn small" id="peaksBtn" disabled title="Highest local maxima, at least 10 dB above the sweep median">Mark top 4 peaks</button>
         <button class="btn small" id="syncMarkersBtn" disabled title="Writes the markers to the device's own markers by frequency (marker N {Hz})">Send first 4 to device</button>
+        <button class="btn small" id="devPeakBtn" disabled title="marker 1 peak on the device, then read its markers back — compares the instrument's peak search with the page's">Ask device for peak</button>
         <button class="btn small" id="clearMarkersBtn" disabled>Clear</button>
         <span class="hint">Click the plot to place one (up to 6). Δ columns are relative to marker 1.</span>
         <span class="hint" id="markerStatus" style="margin-left:auto"></span>
       </div>
       <div class="markers-wrap">
         <table class="markers" id="markerTable">
-          <thead><tr><th>#</th><th>Frequency</th><th>Level dBm</th><th>Max hold</th><th>Δ level dB</th><th>Δ freq</th><th></th></tr></thead>
+          <thead><tr><th>#</th><th>Frequency</th><th>Level dBm</th><th>Max hold</th><th>−3 dB BW</th><th>Δ level dB</th><th>Δ freq</th><th></th></tr></thead>
           <tbody id="markerBody"></tbody>
         </table>
         <p class="hint" id="markerEmpty">No markers yet.</p>
+        <p class="hint" id="bandPower"></p>
       </div>
     </section>
 

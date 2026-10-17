@@ -19,10 +19,10 @@ export function renderSpectrum(ctx, W, H, sweep, layers, held, markers, hover, o
 
   ctx.font = '12px ' + cssVar('--font'); ctx.lineWidth = 1;
   ctx.strokeStyle = cssVar('--grid'); ctx.fillStyle = cssVar('--ink-2');
-  const fs = niceStep(sweep.stop - sweep.start, 8);
+  const fs = niceStep(sweep.stop - sweep.start, Math.max(3, Math.floor(pw / 90)));
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   for (let f = Math.ceil(sweep.start / fs) * fs; f <= sweep.stop + 1; f += fs) { const x = sx(f); ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + ph); ctx.stroke(); ctx.fillText(fmtAxis(f), x, pad.t + ph + 6); }
-  const ys = niceStep(y1 - y0, 6);
+  const ys = niceStep(y1 - y0, Math.max(3, Math.floor(ph / 45)));
   ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
   for (let y = Math.ceil(y0 / ys) * ys; y <= y1 + 1e-9; y += ys) { const yy = sy(y); ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(pad.l + pw, yy); ctx.stroke(); ctx.fillText(+y.toFixed(1), pad.l - 8, yy); }
   ctx.strokeStyle = cssVar('--axis'); ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph); ctx.stroke();

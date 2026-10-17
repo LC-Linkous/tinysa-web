@@ -53,3 +53,40 @@ export const holdMax = (acc, cur) => { for (let i = 0; i < cur.length; i++) if (
 export const holdMin = (acc, cur) => { for (let i = 0; i < cur.length; i++) if (cur[i] < acc[i]) acc[i] = cur[i]; return acc; };
 /** Exponential average in the power domain, alpha = 1/N. */
 export const averageInto = (acc, cur, n) => { const a = 1 / n; for (let i = 0; i < cur.length; i++) { const p = Math.pow(10, acc[i] / 10) * (1 - a) + Math.pow(10, cur[i] / 10) * a; acc[i] = 10 * Math.log10(p); } return acc; };
+
+/** Median of the sweep — a cheap noise-floor estimate (what findPeaks uses). */
+export function noiseFloor(dbm) { const s = Float32Array.from(dbm).sort(); return s[s.length >> 1]; }
+
+/** Running median / mean, edge-padded, k odd. From tsapython's filtering_scan_artifacts.py. */
+export function medianFilter(x, k = 5) {
+  const n = x.length, h = k >> 1, out = new Float32Array(n), w = new Float32Array(k);
+  for (let i = 0; i < n; i++) { for (let j = 0; j < k; j++) w[j] = x[Math.min(n - 1, Math.max(0, i + j - h))]; out[i] = Float32Array.from(w).sort()[h]; }
+  return out;
+}
+export function meanFilter(x, k = 5) {
+  const n = x.length, h = k >> 1, out = new Float32Array(n);
+  for (let i = 0; i < n; i++) { let s = 0; for (let j = -h; j <= h; j++) s += x[Math.min(n - 1, Math.max(0, i + j))]; out[i] = s / k; }
+  return out;
+}
+
+/**
+ * Parabolic interpolation of the peak at index i: fits a parabola through
+ * (i−1, i, i+1) and returns { f, dbm } of its apex. Standard SA trick for
+ * reading a carrier that falls between two bins.
+ */
+export function interpolatePeak(f, dbm, i) {
+  if (i <= 0 || i >= dbm.length - 1) return { f: f[i], dbm: dbm[i] };
+  const a = dbm[i - 1], b = dbm[i], c = dbm[i + 1], d = a - 2 * b + c;
+  if (d >= 0) return { f: f[i], dbm: b };
+  const p = 0.5 * (a - c) / d;                       // −0.5 … 0.5 bins
+  return { f: f[i] + p * (f[i + 1] - f[i]), dbm: b - 0.25 * (a - c) * p };
+}
+
+/** −3 dB bandwidth of the peak at index i, with linear interpolation at the edges. Hz, or null if it runs off the sweep. */
+export function bandwidth3dB(f, dbm, i) {
+  const target = dbm[i] - 3; let lo = i, hi = i;
+  while (lo > 0 && dbm[lo] > target) lo--; while (hi < dbm.length - 1 && dbm[hi] > target) hi++;
+  if (dbm[lo] > target || dbm[hi] > target) return null;
+  const edge = (j, k) => f[j] + (target - dbm[j]) / (dbm[k] - dbm[j]) * (f[k] - f[j]);
+  return edge(hi - 1, hi) - edge(lo + 1, lo);
+}

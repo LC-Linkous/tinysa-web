@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.2.0 — windows, generator mode, more readouts
+
+- **Windows**: the plot area is 1, 2 or 4 panes, each showing its own view
+  (Spectrum, Waterfall, Peak history, Generator). Layout and views remembered.
+- **Peak history** view — peak level and peak frequency over successive
+  sweeps, the third panel of tsapython's `plotting_waterfall_realtime.py`.
+- **Generator mode** (top-bar tab): puts the device in `mode low|high output`,
+  with frequency (`sweep cw`), level, modulation and an output on/off button;
+  the Generator pane draws the nominal output as commanded. Switching back to
+  Analyzer sends `output off` and `mode … input`. The sidebar shows only the
+  sections that apply to the current mode. Fully exercised by the demo device.
+- **Smoothing** toggle (median 5 / mean 5, from `filtering_scan_artifacts.py`)
+  for the display only; the recording keeps raw data. The `:` glitch count is
+  shown per sweep.
+- **scanraw scale check** in Diagnostics: runs `scan` and `scanraw` on the same
+  range, reports the offset, and can apply the suggested scale factor.
+- **Battery and status** in the top bar (`vbat`, `status`, every 30 s).
+- **Device markers**: *Ask device for peak* sends `marker 1 peak`, reads the
+  device's markers back, draws them as hollow glyphs and compares with the
+  page's peak.
+- Markers table: peak frequency by parabolic interpolation (marked *), −3 dB
+  bandwidth, band power between markers 1 and 2; noise-floor (median) line on
+  the spectrum.
+- Device tools: read-only calibration state (`freq_corr`, `actual_freq`,
+  `zero`, `vbat_offset`).
+- Axis tick density adapts to pane width.
+
 ## v0.1.0 — first release
 
 - Web Serial driver for the tinySA console, sharing `shell-link.js` with

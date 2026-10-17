@@ -107,7 +107,7 @@ export class TinySA {
     for (let attempt = 0; attempt <= retries; attempt++) {
       const r = await this.link.command(cmd, { timeoutMs: 8000 + pts * 40, quiet });
       const parsed = TinySA.parseScan(r.body, pts);
-      if (parsed) return { ...parsed, pts, start, stop, t: Date.now(), ms: r.ms, cmd, method: 'scan' };
+      if (parsed) return { ...parsed, pts, start, stop, t: Date.now(), ms: r.ms, cmd, method: 'scan', glitches: (r.body.match(/:\.0/g) || []).length };
       last = { lines: r.body.split('\n').filter(Boolean).length, expected: pts, attempt };
     }
     const err = new Error(`scan returned ${last.lines} usable lines, expected ${last.expected}`);
@@ -166,6 +166,23 @@ export class TinySA {
   /** marker N on|off|peak|{freq}|{index} — the tinySA accepts a frequency directly. */
   async marker(n, v) { return check(await this.link.command(`marker ${n} ${v}`, { timeoutMs: 3000 }), `marker ${n}`); }
   async markerPeak(n) { return this.marker(n, 'peak'); }
+  /**
+   * Device markers, from a bare "marker". Reply format is firmware-dependent
+   * (unverified); each line is read as: first integer = id, largest number
+   * ≥ 10 kHz = frequency, a number between −150 and +30 with a decimal = level.
+   * Returns [{ id, f, dbm }].
+   */
+  async markersList() {
+    const body = (await this.link.command('marker', { timeoutMs: 3000 })).body;
+    const out = [];
+    for (const line of body.split('\n')) {
+      const nums = line.trim().split(/\s+/).map(Number).filter(Number.isFinite); if (nums.length < 2) continue;
+      const id = nums[0], f = Math.max(...nums.slice(1)); if (!(id >= 1 && id <= 8) || f < 1e4) continue;
+      const lvl = nums.slice(1).find(v => v > -150 && v < 30 && !Number.isInteger(v));
+      out.push({ id, f, dbm: lvl ?? null });
+    }
+    return out;
+  }
   /** Put the page's markers on the device by frequency. Returns { sent, skipped, error }. */
   async syncMarkers(markerFreqs) {
     const n = this.env.markers || 4;
@@ -181,6 +198,26 @@ export class TinySA {
   }
   /** trace N value — read the device trace N as dBm per point. */
   async traceValue(n = 1) { const body = fixColon((await this.link.command(`trace ${n} value`)).body); return Float32Array.from(body.split('\n').map(l => parseFloat(l.trim().split(/\s+/).pop())).filter(Number.isFinite)); }
+
+  // ---- signal generator (output_signal.py) ---------------------------------------
+  /** mode low|high input|output — switches the device between analyzer and generator. */
+  async mode(band, dir) { return check(await this.link.command(`mode ${band} ${dir}`, { timeoutMs: 3000 }), 'mode'); }
+  /** output on|off */
+  async output(on) { return check(await this.link.command(`output ${on ? 'on' : 'off'}`, { timeoutMs: 3000 }), 'output'); }
+  /** level −76..13 dBm (generator output level) */
+  async level(dbm) { return check(await this.link.command(`level ${dbm}`, { timeoutMs: 3000 }), 'level'); }
+  /** modulation off|AM_1kHz|AM_10Hz|NFM|WFM|extern */
+  async modulation(m) { return check(await this.link.command(`modulation ${m}`, { timeoutMs: 3000 }), 'modulation'); }
+  /** sweep cw {Hz} — the generator frequency (zero span). */
+  async sweepCw(hz) { return this.sweep('cw', hz); }
+
+  // ---- calibration state (read-only on the page; calibration.py) -------------------
+  /** freq_corr, actual_freq, zero, vbat_offset — whatever the firmware prints for each. */
+  async calState() {
+    const out = {};
+    for (const c of ['freq_corr', 'actual_freq', 'zero', 'vbat_offset']) { try { out[c] = (await this.link.command(c, { timeoutMs: 3000 })).body.trim(); } catch (e) { out[c] = 'error: ' + e.message; } }
+    return out;
+  }
 
   // ---- display / tools (display_ui.py) -----------------------------------------
   async touchCal()  { return this.link.command('touchcal', { timeoutMs: 60000 }); }

@@ -37,7 +37,10 @@ on; where the source is a real capture it says so.
 | `scan {start} {stop} {pts} 3` | `freq level 0.000000000 ` per line — note the trailing space and the third column, which is always zero | single / continuous sweep |
 | `scanraw {start} {stop} {pts} 1` | binary, see below | fast sweep |
 | `rbw auto\|kHz`, `attenuate auto\|0-31`, `lna on\|off`, `spur on\|off`, `calc …`, `ext_gain dB` | nothing (a `usage:` line if rejected) | Levels section |
-| `marker N {Hz}\|peak\|off` | nothing | "Send first 4 to device" |
+| `marker N {Hz}\|peak\|off` | nothing | "Send first 4 to device", "Ask device for peak" |
+| `marker` (no arguments) | one line per enabled marker — **format assumed**: `id index frequency level` | device markers on the plot |
+| `mode low\|high output`, `sweep cw {Hz}`, `level dBm`, `modulation …`, `output on\|off`, `mode … input` | nothing (a `usage:` line if rejected) | Generator mode |
+| `freq_corr`, `actual_freq`, `zero`, `vbat_offset` | one line each (`0 ppb`, `30000000`, `174dBm`, `300` on the demo) | Device tools → Calibration state |
 | `pause`, `resume` | nothing | freeze toggle; after `scanraw` |
 | `capture` | 2 bytes × W × H, RGB565 | device screenshot |
 | `touchcal`, `touchtest` | text, after the user finishes on the screen | Device tools |
@@ -103,7 +106,11 @@ demo device reproduces these byte-for-byte for `deviceid`, `version`, `info`,
 - `capture` byte order (assumed big-endian from the library's `">H"` unpack).
 - Timing of `scan` at 450 points over USB (demo assumes ~2.5 ms/point).
 - Whether `rbw` / `attenuate` / `calc` echo anything on success.
-- `marker N {Hz}` acceptance across firmware versions.
+- `marker N {Hz}` acceptance across firmware versions, and the reply format of a
+  bare `marker` (the page reads it tolerantly: first integer = id, largest
+  number = frequency, a non-integer between −150 and 30 = level).
+- Generator mode: whether `output on` needs `mode … output` first (the page
+  sends it), and whether `level` accepts fractional dBm.
 - Basic and Ultra+ in general.
 
 Collect a diagnostic sample and open a *Scan problem* issue to add to this list.
