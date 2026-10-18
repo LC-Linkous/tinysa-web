@@ -64,10 +64,10 @@ the page must still work with the Google Fonts blocked.
 
 | Change touches… | Test |
 |---|---|
-| `js/device/` | Demo walkthrough **and** a real device: single sweep at max points, continuous for a minute, *Collect diagnostic sample* before and after the change; paste both summaries in the PR. |
+| `js/device/` | `node --test 'tests/**/*.test.mjs'` (the device layer over the demo device), the demo walkthrough, **and** a real device: single sweep at max points, continuous for a minute, *Collect diagnostic sample* before and after the change; paste both summaries in the PR. A generator change also needs a load on the RF port and the output on/off, level and modulation steps exercised. |
 | Views, markers, math | Demo walkthrough, every view, light and dark. Check a marker's R + jX by hand for one point (Z = Z₀ (1+Γ)/(1−Γ)). |
 | Export | Open the CSV in a spreadsheet and the `.s1p` in any Touchstone reader (scikit-rf, tinySA-Saver, a VNA vendor tool). |
-| `MODELS` | Say which device and firmware the numbers came from. |
+| `MODELS` | Numbers come from the tinySA firmware source (`nanovna.h`, `sa_cmd.c`), the same place tsapython's `_profiles.py` reads them; say which file and build, and whether a real unit confirmed them (`verified`). |
 | PROTOCOL.md | Mark each claim *verified on &lt;model&gt;* or *unverified*. |
 
 ## Style

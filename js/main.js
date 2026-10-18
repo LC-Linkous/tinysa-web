@@ -22,7 +22,7 @@ import { initDeviceTools } from './ui/devicetools.js';
 import { initLevels } from './ui/levels.js';
 import { createRecorder } from './ui/recorder.js';
 
-const APP_VERSION = '0.2.0';
+const APP_VERSION = '0.3.0';
 const PEAK_HISTORY = 600;
 const SMOOTH = ['off', 'median5', 'mean5'];
 const $ = id => document.getElementById(id);
@@ -61,7 +61,7 @@ function applyModel(key) {
   if (state.sa) state.sa.model = key;
   $('ptsMaxLabel').textContent = m.maxPts; $('ptsQuickLabel').textContent = m.quick;
   $('ptsCustom').min = m.minPts; $('ptsCustom').max = m.maxPts; if (+$('ptsCustom').value > m.maxPts) $('ptsCustom').value = m.maxPts;
-  $('devRange').textContent = `${fmtHz(m.minHz)} – ${fmtHz(m.maxHz)}, ${m.minPts}–${m.maxPts} pts, scale ${m.scale}`;
+  $('devRange').textContent = `${fmtHz(m.minHz)} – ${fmtHz(m.maxHzUltra)}${m.maxHzUltra !== m.maxHz ? ' (' + fmtHz(m.maxHz) + ' without ultra mode)' : ''}, ${m.minPts}–${m.maxPts} pts, ${m.markers} markers, scale ${m.scale}${m.verified === 'source' ? ' · limits from firmware source, not yet checked on this board' : ''}`;
   levels.fillRbw(m);
 }
 function currentModel() { return state.sa ? state.sa.model : ($('modelSel').value === 'auto' ? DEFAULT_MODEL : $('modelSel').value); }
@@ -85,6 +85,7 @@ async function connect(demo) {
   if (!demo) link.onDrop = e => { con.err('port error: ' + e.message); disconnect(true); };
   const sa = new TinySA(link);
   sa.scaleOverride = settings.scaleOverride === '' ? undefined : settings.scaleOverride;
+  sa.onWarning = t => con.err('warning: ' + t);
   try {
     await link.open();
     if (demo) con.dim('demo tinySA Ultra ready (no hardware)');

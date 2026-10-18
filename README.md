@@ -15,8 +15,8 @@ can be previewed anywhere.
 
 This is the browser companion to the
 [tinySA_python](https://github.com/LC-Linkous/tinySA_python) library
-(`tsapython`): same command set, same model envelopes, same quirks list, no
-Python needed. It is also the second tool built on the
+(`tsapython`, 4.0.0): same command set, same device profiles, same reply
+classification, same output-mode rules, no Python needed. It is also the second tool built on the
 [nanovna-web](https://github.com/LC-Linkous/nanovna-web) codebase — see
 *Shared with nanovna-web* below for what carried over unchanged.
 
@@ -65,11 +65,16 @@ Reading it top to bottom:
   space on scan lines, no error signalling, the `-:.0` level glitch). Anything
   learned about the protocol on one side goes into the other; `PROTOCOL.md`
   here and the library's notes are kept in step.
-- **`js/device/` is a port of the library's device layer**: `sa.scan(start,
-  stop, pts)` returns the same frequency/level pairs as `tsa.scan(...)` with
-  outmask 3, `sa.scanRaw(...)` decodes the binary frame exactly as
-  `plotting_scanraw.py` does (`value / 32 − scale`), and `models.js` carries
-  the same point limits and scale factors as `core.py`.
+- **`js/device/` is a port of the library's device layer** (tsapython 4.0.0):
+  `sa.identify()` reads the board, firmware build and `help` list the way
+  `identify()` does; `models.js` carries the profiles of `_profiles.py`;
+  `classifyReply()` is `classify_reply()`; `sa.setupGenerator()` /
+  `sa.setGenerator()` send the generator sequence of `setup_generator()` /
+  `set_generator()`, with the same 0.4 s settle, `Command timeout` handling and
+  single retry; the RF output is behind the same gate as
+  `set_output_allowed()`. `sa.scan(start, stop, pts)` returns the same
+  frequency/level pairs as `tsa.scan(...)` with outmask 3, and `sa.scanRaw(...)`
+  decodes the binary frame exactly as `plotting_scanraw.py` does.
 - **Above that layer they diverge on purpose.** The page is for the bench:
   watch the band, hold the peaks, find the carrier, record. The library is for
   scripts: batch sweeps, fixtures, anything that needs numpy.
@@ -123,7 +128,7 @@ collapse; the choice is remembered. Drag its right edge to resize it
 the console so it has the full width. On narrow screens the sidebar stacks
 above the plot.
 
-## What it does (v0.2)
+## What it does (v0.3)
 
 - **Sweep** — start/stop or center/span in MHz, points by model maximum /
   quick / custom, single or continuous. Two acquisition paths: `scan` (text,
@@ -151,17 +156,24 @@ above the plot.
   (`marker N {Hz}`); *Ask device for peak* runs the instrument's own peak
   search (`marker 1 peak`), reads its markers back, draws them as hollow
   glyphs and shows the difference from the page's peak.
-- **Generator mode** — the top-bar tab puts the device in output mode
-  (`mode low|high output`); the Generator section sets frequency
-  (`sweep cw`), level (`level`), modulation (`modulation`) and turns the
-  output on or off. The Generator window shows the nominal output as
-  commanded — the tinySA cannot measure its own output, so this is a picture
-  of the settings, not a measurement. Switching back to Analyzer turns the
-  output off and returns the device to input mode.
+- **Generator mode** — the top-bar tab puts the device in output mode with
+  the sequence the firmware needs (`output off`, `mode … output`, `pause`,
+  `level`, `sweep cw`, `modulation`, `resume`) and the output **off**. The
+  Generator section sets frequency, level (the connected model's range),
+  modulation as current firmware spells it (AM/FM with rate, depth and
+  deviation on the Ultra family; AM/NFM/WFM/external on the Basic), and each
+  change goes between `pause` and `resume`. The output button is live only
+  after the arming box ("a load or attenuator is on the RF port") is ticked,
+  the same gate as the library's `set_output_allowed(True)`. The Generator
+  window shows the nominal output as commanded — the tinySA cannot measure
+  its own output, so this is a picture of the settings, not a measurement.
+  Switching back to Analyzer turns the output off and returns the device to
+  input mode.
 - **Levels** — RBW (model-specific list, or auto), attenuation, LNA (Ultra),
-  spur removal, the device's trace math (`calc`), external gain/loss
-  (`ext_gain`). Sent as you change them; the console has no query form for
-  these, so the page shows what it last sent.
+  spur removal, the device's trace math (`calc`, with the current words:
+  `quasi`, `aver`, and `log`/`lin` on the Ultra family), external gain/loss
+  (`ext_gain`). Sent as you change them. A rejected setting shows the device's
+  reason instead of looking like success.
 - **Device readback** — *Use device sweep* copies the instrument's own
   start/stop/points into the page (`sweep`); *Read device trace* shows what's
   on its screen without starting a new scan (`frequencies`, `data 0`).
@@ -173,9 +185,10 @@ above the plot.
   320×240 on the Basic).
 - **Session & compare** — save/load the whole page state as JSON; load a
   two-column CSV as a dotted overlay under the live trace.
-- **Diagnostics** — one button runs a fixed set of commands, records raw
-  replies and timings (plus one small `scanraw` frame as hex), and downloads
-  a JSON to attach to an issue. This is how the page gets validated against
+- **Diagnostics** — one button runs a fixed set of commands (including the
+  query forms whose usage line carries the current value, and the words that
+  changed in 2024–2026 firmware), records raw replies and timings (plus one
+  small `scanraw` frame as hex), and downloads a JSON to attach to an issue. This is how the page gets validated against
   hardware it hasn't seen yet. A second button runs `scan` and `scanraw` on
   the same range and reports the offset between them (what
   `plotting_scanraw.py` plots) — a constant offset means the scale factor is
@@ -203,11 +216,19 @@ the device layer already has room for them.
 
 ## Supported hardware
 
-Built for the tinySA Ultra (what the maintainer owns and what the library's
-captured responses come from). The Basic, Ultra+ and a generic envelope are
-selectable from the Model dropdown; the Basic's limits come from the tinySA
-wiki and are untested. Detection reads `version` (`tinySA4_…` is an Ultra)
-and the first line of `info`.
+Built for the tinySA Ultra (ZS405), what the maintainer owns and what the
+library's hardware sessions run on (firmware v1.4-143 and v1.4-252). The
+Basic (ZS304) and both Ultra+ boards (ZS406, ZS407) have profiles read from the
+firmware source, selectable from the Model dropdown and used automatically when
+detected, but have not been checked on a real unit. Detection reads `version`
+(`tinySA4_…` is the Ultra family; the `HW Version` line names the board) and the
+first line of `info` (which prints the board since firmware v1.4-190).
+
+The oldest firmware the page is written for is **v1.4-182** (October 2024),
+the same floor as tsapython 4.0.0; older firmware connects with a warning in
+the console. The firmware's `help` reply decides which commands the page will
+send, so a device that lacks a command gets a clear refusal instead of a
+`name?` reply.
 
 Chrome or Edge is required for the USB link — they implement
 [Web Serial](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API).
@@ -225,7 +246,7 @@ much of that codebase is actually generic. Result, by file:
 
 | Unchanged (byte-identical) | Instrument-specific (rewritten) |
 |---|---|
-| `js/device/shell-link.js` — console framing | `js/device/tinysa.js`, `models.js`, `demo-link.js` |
+| `js/device/shell-link.js` — console framing (see note) | `js/device/tinysa.js`, `models.js`, `demo-link.js` |
 | `js/device/serial-link.js` — Web Serial transport | `js/sa.js` (was `rf.js`) — dBm math, peak finding, holds |
 | `js/plot/common.js`, `js/plot/palettes.js` | `js/plot/spectrum.js`, `waterfall.js` (was `rect.js`, `smith.js`, `waterfall.js`) |
 | `js/ui/sidebar.js`, `js/ui/console.js` | `js/ui/settings.js`, `recorder.js`, `export.js`, `session.js`, `diagnostics.js`, `devicetools.js` |
@@ -236,11 +257,14 @@ much of that codebase is actually generic. Result, by file:
 
 So the transport, framing, console drawer, sidebar, palettes, layout and
 component styles are a reusable kit; everything that knows what the numbers
-mean is per instrument. One shared file changed during the port
-(`shell-link.js` gained a `quiet` option on `commandBinary`) and the change
-was applied to both repos the same day — the rule is that the "unchanged"
-column stays identical, so a diff between the two repos is the list of
-instrument-specific code.
+mean is per instrument. The rule is that the "unchanged" column stays
+identical, so a diff between the two repos is the list of instrument-specific
+code. `shell-link.js` has changed twice under that rule, each time with
+options that default to the NanoVNA behaviour: v0.1 added `quiet` on
+`commandBinary`; v0.3 added `requireEcho` and `terminators` on `command()`
+(the tinySA's stale-reply and `Command timeout` handling) and serialised all
+commands through one queue, so a background poll can no longer interleave
+with a user command. The v0.3 change is to be applied to nanovna-web.
 
 ## Code layout
 
@@ -257,11 +281,13 @@ js/
   main.js                  app state + wiring
   sa.js                    pure math: formatting, peak search, hold/average helpers
   device/                  ← the reusable "library" layer
-    shell-link.js          console framing (ch> prompt, echo, binary)
+    shell-link.js          console framing (ch> prompt, echo, binary, one command at a time)
     serial-link.js         Web Serial transport
-    demo-link.js           simulated tinySA Ultra, same byte stream
-    models.js              per-model envelopes, detectModel()
-    tinysa.js              TinySA class — method names mirror tsapython
+    demo-link.js           simulated tinySA Ultra ZS405 on v1.4-252, same byte stream
+    models.js              device profiles, identifyDevice()
+    tinysa.js              TinySA class — method names mirror tsapython 4.0.0
+tests/
+  device.test.mjs          the device layer over the demo device (node --test 'tests/**/*.test.mjs')
   plot/
     spectrum.js  waterfall.js  peakhist.js  palettes.js  common.js
   ui/
@@ -283,6 +309,13 @@ python -m http.server 8000
 ```
 
 Web Serial works on `localhost`, so a real device can be used this way.
+
+The device layer has tests that run without a browser or a device, against
+the demo device's byte stream (Node 18 or later):
+
+```sh
+node --test 'tests/**/*.test.mjs'
+```
 
 ## Validating against a real device
 

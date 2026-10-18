@@ -30,7 +30,8 @@
       <option value="auto">Detect from device</option>
       <option value="TINYSA_BASIC">tinySA (Basic)</option>
       <option value="TINYSA_ULTRA">tinySA Ultra</option>
-      <option value="TINYSA_ULTRA_PLUS">tinySA Ultra+</option>
+      <option value="TINYSA_ULTRA_PLUS">tinySA Ultra+ (ZS407)</option>
+      <option value="TINYSA_ULTRA_PLUS_406">tinySA Ultra+ (ZS406)</option>
       <option value="TINYSA_GENERIC">Generic / other</option>
     </select>
   </label>
@@ -112,7 +113,7 @@
           <label class="row check"><input type="checkbox" id="spurChk"> <span>Spur removal</span></label>
         </div>
         <div class="field" style="margin-top:10px"><label for="calcSel">Device trace math (<code>calc</code>)</label>
-          <select id="calcSel" style="width:100%"><option value="off">off</option><option value="minh">min hold</option><option value="maxh">max hold</option><option value="maxd">max decay</option><option value="aver4">average 4</option><option value="aver16">average 16</option><option value="quasip">quasi-peak</option></select>
+          <select id="calcSel" style="width:100%"><option value="off">off</option><option value="minh">min hold</option><option value="maxh">max hold</option><option value="maxd">max decay</option><option value="aver4">average 4</option><option value="aver16">average 16</option><option value="aver">average</option><option value="quasi">quasi-peak</option></select>
           <p class="hint">Applies on the device, so it affects what <code>scan</code> returns. The page has its own max/min/average above the plot that don't touch the device.</p></div>
         <div class="field"><label for="extGain">External gain / loss</label>
           <div class="row"><input type="number" id="extGain" value="0" min="-100" max="100" step="0.1"><span class="suffix">dB</span><button class="btn small" id="extGainBtn">Set</button></div>
@@ -124,18 +125,25 @@
     <section data-section="generator" data-mode="tx" id="genSection">
       <h2><button type="button" aria-expanded="false">Generator</button></h2>
       <div class="body">
-        <p class="hint" style="margin:0 0 8px">Signal-generator output. Frequency is sent as <code>sweep cw</code>, level as <code>level</code>, modulation as <code>modulation</code>; the big button sends <code>output on|off</code>. Switching back to Analyzer turns the output off.</p>
+        <p class="hint" style="margin:0 0 8px">Signal-generator output. Entering this mode sends the firmware's sequence (<code>output off</code>, <code>mode … output</code>, <code>pause</code>, <code>level</code>, <code>sweep cw</code>, <code>modulation</code>, <code>resume</code>) with the output left <strong>off</strong>; each change below is sent the same way, between <code>pause</code> and <code>resume</code>. Switching back to Analyzer turns the output off.</p>
         <div class="two-col">
-          <div class="field"><label for="genBand">Band</label><select id="genBand" style="width:100%"><option value="low">low (≤ 800 MHz)</option><option value="high">high</option></select></div>
+          <div class="field" id="genBandField" hidden><label for="genBand">Band</label><select id="genBand" style="width:100%"><option value="low">low</option><option value="high">high</option></select></div>
           <div class="field"><label for="genFreq">Frequency</label><div class="row"><input type="number" id="genFreq" value="433.92" min="0.1" step="any"><span class="suffix">MHz</span></div></div>
         </div>
         <div class="field"><label for="genLevel">Level <span class="suffix"><span id="genLevelOut">-20</span> dBm</span></label>
-          <input type="range" id="genLevel" min="-76" max="13" step="1" value="-20" style="width:100%"></div>
+          <input type="range" id="genLevel" min="-76" max="-6" step="1" value="-20" style="width:100%">
+          <p class="hint" id="genLevelRange">−76 … −6 dBm</p></div>
         <div class="field"><label for="genMod">Modulation</label>
-          <select id="genMod" style="width:100%"><option value="off">off (CW)</option><option value="AM_1kHz">AM 1 kHz</option><option value="AM_10Hz">AM 10 Hz</option><option value="NFM">NFM</option><option value="WFM">WFM</option><option value="extern">extern</option></select></div>
-        <div class="stack" style="margin-top:12px"><button class="btn block" id="genOnBtn" aria-pressed="false">Output off — click to start</button></div>
+          <select id="genMod" style="width:100%"><option value="off">off (CW)</option><option value="am">AM</option><option value="fm">FM</option></select></div>
+        <div class="two-col">
+          <div class="field" id="genRateField" hidden><label for="genRate">Rate</label><div class="row"><input type="number" id="genRate" value="1000" min="1" max="10000" step="1"><span class="suffix">Hz</span></div></div>
+          <div class="field" id="genDepthField" hidden><label for="genDepth">AM depth</label><div class="row"><input type="number" id="genDepth" value="50" min="0" max="100" step="1"><span class="suffix">%</span></div></div>
+          <div class="field" id="genDevField" hidden><label for="genDev">FM deviation</label><div class="row"><input type="number" id="genDev" value="3000" min="100" max="300000" step="100"><span class="suffix">Hz</span></div></div>
+        </div>
+        <label class="field" style="display:flex;gap:8px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="genArm" style="margin-top:3px"><span>A 50 Ω load or an attenuator is on the RF port. <span class="hint">Arms the output; nothing is sent until the button below. Same gate as the library's <code>set_output_allowed(True)</code>.</span></span></label>
+        <div class="stack" style="margin-top:12px"><button class="btn block" id="genOnBtn" aria-pressed="false" disabled>Output off — click to start</button></div>
         <p class="hint" id="genStatus"></p>
-        <p class="hint">Level range −76 … +13 dBm is the library's check; the device clips to what the band allows.</p>
+        <p class="hint">Ranges are the connected model's (Ultra: one band, −76 … −6 dBm, AM/FM; Basic: low or high band, high −38 … +13 dBm, AM/NFM/WFM/external). The firmware resets the level to maximum on every mode change, so the level is sent after the mode.</p>
       </div>
     </section>
 
@@ -222,7 +230,7 @@
         <dl class="kv" id="calState" hidden></dl>
         <div class="field" style="margin-top:10px"><label for="calOutSel">Calibration output</label>
           <div class="row"><select id="calOutSel" style="width:100%"><option value="off">off</option><option>30</option><option>15</option><option>10</option><option>4</option><option>3</option><option>2</option><option>1</option></select><span class="suffix">MHz</span><button class="btn small" id="calOutBtn" disabled>Set</button></div>
-          <p class="hint">The reference square wave on the CAL connector (<code>caloutput</code>) — handy for checking level accuracy with a cable to the input.</p></div>
+          <p class="hint">The reference square wave on the CAL connector (<code>caloutput</code>) — handy for checking level accuracy with a cable to the input. Anything but <em>off</em> is an RF output: tick the arming box in the Generator section first (the same gate as <code>output on</code>).</p></div>
         <p class="hint" id="toolsStatus"></p>
       </div>
     </section>

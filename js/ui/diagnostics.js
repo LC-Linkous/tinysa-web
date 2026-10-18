@@ -4,13 +4,15 @@ import { TinySA } from '../device/tinysa.js';
 import { detectModel } from '../device/models.js';
 
 export const DIAG_COMMANDS = ['version', 'info', 'deviceid', 'vbat', 'status', 'sweep', 'frequencies',
-  'scan 1000000 100000000 11 1', 'scan 1000000 100000000 11 2', 'scan 1000000 100000000 11 3', 'data 0', 'rbw', 'attenuate', 'pause', 'resume'];
+  'scan 1000000 100000000 11 1', 'scan 1000000 100000000 11 2', 'scan 1000000 100000000 11 3', 'data 0', 'rbw', 'attenuate', 'pause', 'resume',
+  // 4.0.0: the query forms whose usage line carries the current value, and the words that changed in 2024-2026 firmware
+  'level', 'leveloffset', 'calc', 'spur', 'modulation', 'output', 'mode', 'waitscan 1', 'marker'];
 
 /** Runs the diagnostic set. onProgress(text) gets a running summary. Returns the report object. */
 export async function collectDiagnostics(sa, sweepParams, onProgress) {
   const link = sa.link;
   const d = {
-    tool: 'tinysa-web', version: '0.2.0', when: new Date().toISOString(), userAgent: navigator.userAgent,
+    tool: 'tinysa-web', version: '0.3.0', when: new Date().toISOString(), userAgent: navigator.userAgent,
     port: link.info(), modelSelected: sa.model, modelDetected: detectModel(sa.ident.version, sa.ident.info), scale: sa.scale, ident: { ...sa.ident, help: undefined }, commands: [],
   };
   const summary = () => d.commands.map(r => `${r.cmd}\n    ${r.error ? 'ERROR ' + r.error : `${Math.round(r.ms)} ms, ${r.lines ?? r.bytes ?? 0} ${r.bytes != null ? 'bytes' : 'lines'}${r.promptCount != null ? `, ${r.promptCount}×ch>` : ''}${r.parsedOk != null ? (r.parsedOk ? ', parsed OK' : ', PARSE FAILED') : ''}`}`).join('\n');

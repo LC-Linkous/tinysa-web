@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.3.0 — tsapython 4.0.0 parity
+
+`js/device/` now matches the library's 4.0.0 device layer, from the same
+hardware session (tinySA Ultra ZS405, firmware v1.4-252).
+
+- **Identification**: board (ZS304 / ZS405 / ZS406 / ZS407) from `info` or the
+  `HW Version` prefix, firmware build parsed, the device's `help` list decides
+  which commands are sent (`sa.has()`); a warning below firmware v1.4-182.
+- **Device profiles** (`models.js`) from the firmware source: 8 markers on the
+  Ultra family, per-model modulation / output / spur / calc words and level
+  ranges, Ultra+ ZS406 and ZS407 as separate entries, ranges with and without
+  ultra mode.
+- **Reply classification**: `classifyReply()` ports the library's
+  `classify_reply()`; API methods throw a `DeviceError` with `.status`
+  (`usage`, `unknown-command`, `device-refused`, `blocked`, `timeout`) and
+  `sa.lastStatus` keeps it. Bare commands are queries, not rejections.
+- **Generator mode rewritten for current firmware.** The 2020 modulation
+  keywords (`AM_1kHz`, `AM_10Hz`, `NFM`, `WFM`) are gone from the firmware;
+  the page sends `modulation off|am|fm` with `freq`, `depth` and `deviation`
+  (Ultra family) or `off|am|nfm|wfm|extern` (Basic). Entering the mode uses
+  the firmware's order (`output off`, `mode`, `pause`, `level`, `sweep cw`,
+  `modulation`, `resume`) with the output off; changes go between `pause` and
+  `resume`; the level range follows the model and band. The output button is
+  behind an arming checkbox ("a load or attenuator is on the RF port"), the
+  same gate as the library's `set_output_allowed(True)`; `caloutput` from
+  Device tools asks once.
+- **Output-mode firmware race handled**: a 0.4 s settle after `output` /
+  `modulation` / `caloutput` / `leveloffset`, `Command timeout` recognised as
+  the end of a reply, idempotent setters resent once. PROTOCOL.md has the
+  mechanism and the measurements.
+- **Reader**: waits for the command's own echo before accepting a prompt
+  (stale replies discarded); commands over 47 bytes refused before sending;
+  all commands serialised through one queue, so the battery poll can no
+  longer interleave with a user command (it did: an `output off` reply could
+  carry the `status` reply).
+- **Levels**: `calc` words are the current ones (`quasi`, `aver`, `log`, `lin`);
+  `spur auto` on the Ultra family.
+- **Demo device** simulates a ZS405 on v1.4-252: the board in `info`, the
+  v1.4-252 `help` list, current modulation words, `mode [low] input|output`,
+  the level reset on a mode change, and the dropped-command race (timeout
+  shortened to 3 s so it can be seen).
+- **Tests**: `node --test 'tests/**/*.test.mjs'` runs the device layer against the demo
+  device's byte stream; a GitHub workflow runs them on push and PR.
+- Diagnostics also records the query forms (`level`, `calc`, `modulation`,
+  `output`, `mode`, …) and `waitscan`, so a sample says what words a firmware
+  accepts.
+- `scanraw`'s last argument is a bit field since v1.4-177; the page sends
+  0 or 1 only.
+
 ## v0.2.0 — windows, generator mode, more readouts
 
 - **Windows**: the plot area is 1, 2 or 4 panes, each showing its own view
