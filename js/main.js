@@ -22,7 +22,7 @@ import { initDeviceTools } from './ui/devicetools.js';
 import { initLevels } from './ui/levels.js';
 import { createRecorder } from './ui/recorder.js';
 
-const APP_VERSION = '0.3.0';
+const APP_VERSION = '0.3.1';
 const PEAK_HISTORY = 600;
 const SMOOTH = ['off', 'median5', 'mean5'];
 const $ = id => document.getElementById(id);
@@ -47,9 +47,10 @@ const levels = initLevels($('levelsSection'), () => state.sa, con);
 const generator = initGenerator($('genSection'), () => state.sa, con);
 generator.onChange = () => { chart.dirty = true; };
 const VIEWS = { spectrum: 'Spectrum', waterfall: 'Waterfall', peakhist: 'Peak history', generator: 'Generator' };
-const panes = createPanes($('panes'), VIEWS, () => { wirePanes(); ensureGenPane(); buildLegend(); chart.dirty = true; });
+const panes = createPanes($('panes'), VIEWS, () => { wirePanes(); ensureGenPane(); buildLegend(); chart.dirty = true; },
+  { key: 'tinysa-web.panes', defaults: ['spectrum', 'waterfall', 'peakhist', 'generator'] });
 /** In generator mode one window always shows the generator. */
-function ensureGenPane() { if (state.mode === 'tx' && !panes.panes.some(p => p.view === 'generator')) panes.panes[0].el.querySelector('[data-view=generator]').click(); }
+function ensureGenPane() { if (state.mode === 'tx' && !panes.panes.some(p => p.view === 'generator')) panes.setView(0, 'generator'); }
 
 function setFreezeUi(frozen) { const b = $('freezeBtn'); b.setAttribute('aria-pressed', String(frozen)); b.textContent = frozen ? 'Device frozen — click to resume' : 'Freeze device screen'; b.classList.toggle('running', frozen); }
 $('freezeBtn').addEventListener('click', async () => { const v = state.sa; if (!v || state.busy) return; try { if (v.paused) await v.resume(); else await v.pause(); setFreezeUi(v.paused); } catch (e) { con.err(e.message); } });

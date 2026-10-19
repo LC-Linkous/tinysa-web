@@ -118,7 +118,7 @@ connection (or the Python script) before starting the other.
 └────────────┴─────────────────────────────────────────────────────┘
 ```
 
-Each window has its own view tabs; *Windows 1 / 2 / 4* sets how many. The
+Each window has its own view tabs; *Windows 1 / 2 / 4* sets how many (two side by side on a wide screen, stacked on a narrow one). The
 top-bar **Analyzer / Generator** tabs switch the device between input and
 output mode and the sidebar shows only the sections that apply.
 
@@ -250,8 +250,8 @@ much of that codebase is actually generic. Result, by file:
 | `js/device/serial-link.js` — Web Serial transport | `js/sa.js` (was `rf.js`) — dBm math, peak finding, holds |
 | `js/plot/common.js`, `js/plot/palettes.js` | `js/plot/spectrum.js`, `waterfall.js` (was `rect.js`, `smith.js`, `waterfall.js`) |
 | `js/ui/sidebar.js`, `js/ui/console.js` | `js/ui/settings.js`, `recorder.js`, `export.js`, `session.js`, `diagnostics.js`, `devicetools.js` |
-| `css/layout.css`, `css/components.css` | `js/ui/levels.js`, `generator.js`, `panes.js` (new; replace `calibration.js`, `cw.js`) |
-| | `js/plot/peakhist.js`, `css/panes.css` (new) |
+| `css/layout.css`, `css/components.css`, `js/ui/panes.js` | `js/ui/levels.js`, `generator.js` (replace `calibration.js`, `cw.js`) |
+| `css/panes.css` (the window grid; tinysa-web appends its mode-tab block) | `js/plot/peakhist.js` |
 | `.github/workflows/pages.yml`, `LICENSE`, `CODE_OF_CONDUCT.md` | `css/theme.css` — only the trace-colour block differs |
 | | `index.html`, `js/main.js` |
 

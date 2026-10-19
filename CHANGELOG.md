@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.3.1
+
+- `panes.js` is now the shared module (storage key and default views are
+  parameters) and `panes.css`'s grid block is identical to nanovna-web's,
+  which gained the same 1 / 2 / 4 windows in its v0.5.0. Two windows are side
+  by side on a wide screen (they were stacked).
+
 ## v0.3.0 — tsapython 4.0.0 parity
 
 `js/device/` now matches the library's 4.0.0 device layer, from the same
