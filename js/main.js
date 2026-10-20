@@ -9,6 +9,7 @@ import { renderSpectrum } from './plot/spectrum.js';
 import { renderWaterfall, WATERFALL_ROWS } from './plot/waterfall.js';
 import { renderPeakHistory } from './plot/peakhist.js';
 import { createPanes } from './ui/panes.js';
+import { createClip } from './ui/clip.js';
 import { initGenerator, renderGenerator } from './ui/generator.js';
 import { buildLut, cssGradient } from './plot/palettes.js';
 import { cssVar } from './plot/common.js';
@@ -22,7 +23,7 @@ import { initDeviceTools } from './ui/devicetools.js';
 import { initLevels } from './ui/levels.js';
 import { createRecorder } from './ui/recorder.js';
 
-const APP_VERSION = '0.3.1';
+const APP_VERSION = '0.4.0';
 const PEAK_HISTORY = 600;
 const SMOOTH = ['off', 'median5', 'mean5'];
 const $ = id => document.getElementById(id);
@@ -128,6 +129,7 @@ function sameGrid(a, b) { return a && b && a.pts === b.pts && a.start === b.star
 function resetLayers() { state.layers = { max: null, min: null, avg: null }; state.avgN = 0; }
 function applySmoothing(sw) { const raw = sw.raw || sw.dbm; sw.raw = raw; sw.dbm = state.smooth === 'median5' ? medianFilter(raw, 5) : state.smooth === 'mean5' ? meanFilter(raw, 5) : raw; }
 function acceptSweep(sw) {
+  if (clip.replaying) { recorder.addSweep(sw); return; }   // replaying a recording: keep recording, leave the display to the replay
   if (!sameGrid(state.sweep, sw)) { resetLayers(); state.history = []; state.peaks = []; }
   recorder.addSweep(sw);                 // raw, before display smoothing
   applySmoothing(sw); state.sweep = sw;
@@ -216,7 +218,7 @@ function drawExtras(ctx, g, sw) {
     ctx.fillStyle = cssVar('--maxhold'); ctx.font = 'bold 11px ' + cssVar('--font'); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText('D' + m.id, x, yy - 11);
   }
 }
-function renderAll() { chart.geoms = panes.panes.map(renderPane); }
+function renderAll() { chart.geoms = panes.panes.map(renderPane); clip?.onFrame(); }
 function tick() { if (chart.dirty) { chart.dirty = false; renderAll(); } requestAnimationFrame(tick); }
 const resizer = new ResizeObserver(() => chart.dirty = true);
 
@@ -437,7 +439,38 @@ function refreshRec() {
   $('recBadge').hidden = !recorder.on; $('recBadge').textContent = `● REC ${n}`;
   $('recWfBtn').disabled = $('recSweepsBtn').disabled = $('recJsonBtn').disabled = $('recClearBtn').disabled = !n;
 }
-recorder.onChange = refreshRec;
+recorder.onChange = () => { refreshRec(); clip.refresh(); };
+// ---------------------------------------------------------------- replay & clip
+// Replay swaps the live sweep/history/peaks for a frame of the recording and
+// renders the windows synchronously; the live state is restored on exit.
+const live = { saved: null };
+function replayFrame(i) {
+  const recs = recorder.sweeps, s = recs[i]; if (!s) return;
+  if (!live.saved) live.saved = { sweep: state.sweep, history: state.history, peaks: state.peaks, layers: state.layers };
+  const sw = { ...s, raw: s.dbm, dbm: s.dbm, t: s.t, ms: 0 }; applySmoothing(sw);
+  const same = x => x.pts === s.pts && x.start === s.start && x.stop === s.stop;
+  const history = []; for (let k = i; k >= 0 && history.length < WATERFALL_ROWS; k--) if (same(recs[k])) history.push(recs[k].dbm);
+  const peaks = []; for (let k = Math.max(0, i - PEAK_HISTORY + 1); k <= i; k++) { const pi = peakIndex(recs[k].dbm), pk = interpolatePeak(recs[k].f, recs[k].dbm, pi); peaks.push({ t: recs[k].t, f: pk.f, dbm: pk.dbm }); }
+  state.sweep = sw; state.history = history; state.peaks = peaks; state.layers = { max: null, min: null, avg: null };
+  $('sweepTime').textContent = `replay ${i + 1} / ${recs.length} · ${new Date(s.t).toLocaleTimeString()}`;
+  renderMarkers(); renderAll();
+}
+function replayExit() {
+  if (!live.saved) return;
+  Object.assign(state, live.saved); live.saved = null;
+  $('sweepTime').textContent = state.sweep ? `${state.sweep.pts} pts · ${state.sweep.method}` : '—';
+  renderMarkers(); chart.dirty = true;
+}
+const clip = createClip(
+  { slider: $('clipSlider'), playBtn: $('clipPlayBtn'), speedSel: $('clipSpeed'), posLabel: $('clipPos'), exitBtn: $('clipExitBtn'), exportBtn: $('clipExportBtn'), liveBtn: $('clipLiveBtn'), stampChk: $('clipStamp'), status: $('clipStatus') },
+  { name: 'tinysa', panesEl: $('panes'), getPanes: () => panes.panes, count: () => recorder.sweeps.length, timeAt: i => recorder.sweeps[i].t,
+    show: replayFrame, exit: replayExit,
+    stamp: i => { const s = i == null ? state.sweep : recorder.sweeps[i]; if (!s) return 'tinySA Web'; return `${fmtHz(s.start)} – ${fmtHz(s.stop)} · ${s.pts} pts · ${i == null ? 'live' : `sweep ${i + 1}/${recorder.sweeps.length}`} · ${new Date(s.t).toLocaleTimeString()} · ${state.sa?.ident.modelName || state.sa?.env.name || 'tinySA'}`; },
+    download, log: t => con.dim(t) });
+$('recLoadBtn').addEventListener('click', async () => {
+  try { const f = await pickFile('.json,application/json'); if (!f) return; const n = recorder.loadJson(JSON.parse(await f.text())); con.dim(`loaded recording: ${n} sweeps from ${f.name}`); clip.refresh(); }
+  catch (e) { con.err('load recording: ' + e.message); }
+});
 $('recBtn').addEventListener('click', () => { if (recorder.on) recorder.stop(); else { recorder.start(); con.dim('recording started'); } });
 $('recWfBtn').addEventListener('click', () => download(`tinysa-waterfall-${stamp()}.csv`, recorder.waterfallCsv()));
 $('recSweepsBtn').addEventListener('click', () => download(`tinysa-sweeps-${stamp()}.csv`, recorder.sweepsCsv()));

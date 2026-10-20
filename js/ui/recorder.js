@@ -41,6 +41,14 @@ export function createRecorder() {
     return new Blob([rows.join('\n') + '\n'], { type: 'text/csv' });
   };
 
+  /** Load a recording JSON made by jsonBlob() (sweeps become typed arrays). Returns the sweep count. */
+  rec.loadJson = obj => {
+    if (!obj || obj.kind !== 'recording' || !Array.isArray(obj.sweeps)) throw new Error('not a tinySA Web recording');
+    rec.sweeps = obj.sweeps.map(s => ({ t: +s.t || 0, start: +s.start, stop: +s.stop, pts: +s.pts, method: s.method || 'scan', f: Float64Array.from(s.f), dbm: Float32Array.from(s.dbm) }));
+    rec.startedAt = obj.startedAt ? Date.parse(obj.startedAt) : rec.sweeps[0]?.t || null;
+    rec.onChange?.(); return rec.sweeps.length;
+  };
+
   /** Everything, as JSON (sweeps as plain arrays). */
   rec.jsonBlob = meta => new Blob([JSON.stringify({ tool: 'tinysa-web', kind: 'recording', ...meta, startedAt: rec.startedAt && iso(rec.startedAt), sweeps: rec.sweeps.map(s => ({ ...s, f: Array.from(s.f), dbm: Array.from(s.dbm) })) })], { type: 'application/json' });
 

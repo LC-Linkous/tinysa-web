@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.0 — replay and clips
+
+- **Replay**: a slider and Play / speed (0.5–8×) in the Recording section
+  scrub through the recording; every window redraws for that sweep, with the
+  waterfall and peak history rebuilt from the recording up to that point.
+  *Live* returns to the instrument. Sweeps arriving during a replay are still
+  recorded. *Load recording JSON* brings a saved recording back.
+- **Clip (WebM)**: *Save recording as clip* plays the recording back at the
+  chosen speed while the browser's MediaRecorder encodes the windows, one
+  frame per sweep; *Record clip of the windows* does the same for the live
+  display until stopped. Optional caption bar (range, sweep, time, device).
+  VP9 WebM, full colour, no library; typically tens of kB per sweep-frame.
+  `js/ui/clip.js` is shared with nanovna-web.
+
 ## v0.3.1
 
 - `panes.js` is now the shared module (storage key and default views are

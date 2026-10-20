@@ -128,7 +128,7 @@ collapse; the choice is remembered. Drag its right edge to resize it
 the console so it has the full width. On narrow screens the sidebar stacks
 above the plot.
 
-## What it does (v0.3)
+## What it does (v0.4)
 
 - **Sweep** — start/stop or center/span in MHz, points by model maximum /
   quick / custom, single or continuous. Two acquisition paths: `scan` (text,
@@ -179,7 +179,16 @@ above the plot.
   on its screen without starting a new scan (`frequencies`, `data 0`).
 - **Recording** — log every sweep with a timestamp while recording is on;
   save as a waterfall matrix CSV (the plot as data), a long sweep log CSV, or
-  JSON.
+  JSON; load a recording JSON back.
+- **Replay** — scrub through the recording with a slider or play it at 0.5–8×;
+  every window redraws for that sweep (waterfall and peak history rebuilt from
+  the recording up to that point). Sweeps that arrive while replaying are still
+  recorded. *Live* returns to the instrument.
+- **Clip (WebM)** — save what the windows show as a video: a recording played
+  back at the chosen speed, or the live windows until you stop, one frame per
+  rendered sweep, with an optional caption bar (range, sweep, time, device).
+  Encoded by the browser's own MediaRecorder: full colour, no library, a
+  fraction of a GIF's size; plays in any browser, Slack and Discord.
 - **Export** — CSV (`Frequency_Hz,Signal_Strength_dBm`), plot PNG, and a
   screenshot of the device's own screen (`capture`, 480×320 on the Ultra,
   320×240 on the Basic).
@@ -250,7 +259,7 @@ much of that codebase is actually generic. Result, by file:
 | `js/device/serial-link.js` — Web Serial transport | `js/sa.js` (was `rf.js`) — dBm math, peak finding, holds |
 | `js/plot/common.js`, `js/plot/palettes.js` | `js/plot/spectrum.js`, `waterfall.js` (was `rect.js`, `smith.js`, `waterfall.js`) |
 | `js/ui/sidebar.js`, `js/ui/console.js` | `js/ui/settings.js`, `recorder.js`, `export.js`, `session.js`, `diagnostics.js`, `devicetools.js` |
-| `css/layout.css`, `css/components.css`, `js/ui/panes.js` | `js/ui/levels.js`, `generator.js` (replace `calibration.js`, `cw.js`) |
+| `css/layout.css`, `css/components.css`, `js/ui/panes.js`, `js/ui/clip.js` | `js/ui/levels.js`, `generator.js` (replace `calibration.js`, `cw.js`) |
 | `css/panes.css` (the window grid; tinysa-web appends its mode-tab block) | `js/plot/peakhist.js` |
 | `.github/workflows/pages.yml`, `LICENSE`, `CODE_OF_CONDUCT.md` | `css/theme.css` — only the trace-colour block differs |
 | | `index.html`, `js/main.js` |
@@ -291,7 +300,7 @@ tests/
   plot/
     spectrum.js  waterfall.js  peakhist.js  palettes.js  common.js
   ui/
-    sidebar.js  console.js  panes.js  settings.js  diagnostics.js
+    sidebar.js  console.js  panes.js  clip.js  settings.js  diagnostics.js
     export.js  levels.js  generator.js  session.js  devicetools.js
     recorder.js
 ```
