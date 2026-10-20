@@ -400,6 +400,47 @@ export class TinySA {
     return true;
   }
 
+  // ---- trigger (acquisition.py trigger()) -------------------------------------------
+  /** trigger auto|normal|single, or a level in dBm (which also selects normal). */
+  async trigger(v) {
+    if (v === 'auto' || v === 'normal' || v === 'single') return this._ok(`trigger ${v}`, 'trigger', { timeoutMs: 25000 });
+    if (!Number.isFinite(+v)) this._blocked('trigger', 'auto|normal|single or a level in dBm');
+    return this._ok(`trigger ${+v}`, 'trigger', { timeoutMs: 25000 });
+  }
+
+  // ---- zero-span level meter ------------------------------------------------------
+  /**
+   * One reading at a frequency: a small scanraw around it, reported as the
+   * peak and the mean of the points. span defaults to 2 × the current RBW's
+   * worth of bins; 11 points keeps it a few readings per second.
+   */
+  async measureAt(hz, { spanHz = 200e3, pts = 11 } = {}) {
+    const sw = await this.scanRaw(Math.max(this.env.minHz, hz - spanHz / 2), hz + spanHz / 2, pts, { quiet: true });
+    let peak = -Infinity, sum = 0; for (let i = 0; i < sw.pts; i++) { if (sw.dbm[i] > peak) peak = sw.dbm[i]; sum += Math.pow(10, sw.dbm[i] / 10); }
+    return { f: hz, peak, mean: 10 * Math.log10(sum / sw.pts), t: Date.now(), ms: sw.ms };
+  }
+
+  // ---- SD card (presets_config.py sd_list / sd_read; Ultra family) ------------------
+  /** sd_list [pattern] → [{ name, size }]. The card's directory order; 'err: (n)' lines are thrown. */
+  async sdList(pattern = '') {
+    this._need('sd_list');
+    const r = await this._ok(`sd_list${pattern ? ' ' + pattern : ''}`, 'sd_list', { timeoutMs: 25000 });
+    const out = [];
+    for (const line of r.body.split('\n')) {
+      const t = line.trim(); if (!t) continue;
+      if (/^err:/i.test(t)) throw new DeviceError('sd_list: ' + t + ' (no card, or it could not be mounted)', STATUS.REFUSED, t);
+      const m = /^(.+?)\s+(\d+)$/.exec(t); if (m) out.push({ name: m[1], size: +m[2] });
+    }
+    return out;
+  }
+  /** sd_read {filename} → Uint8Array. Length-prefixed binary; 'err: (4) no file' is thrown. */
+  async sdRead(name) {
+    this._need('sd_read');
+    if (!/^[\w.\-]{1,40}$/i.test(name)) this._blocked('sd_read', 'file name must be 8.3-style, no spaces');
+    try { const { payload } = await this.link.commandBinary(`sd_read ${name}`, 0, { lengthPrefix: 4, timeoutMs: 120000 }); this.lastStatus = STATUS.OK; return payload; }
+    catch (e) { this.lastStatus = STATUS.REFUSED; throw new DeviceError('sd_read: ' + e.message, STATUS.REFUSED); }
+  }
+
   // ---- calibration state (read-only on the page; calibration.py) -------------------
   /** freq_corr, actual_freq, zero, vbat_offset — whatever the firmware prints for each. freq_corr is Ultra-only. */
   async calState() {

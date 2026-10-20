@@ -128,7 +128,7 @@ collapse; the choice is remembered. Drag its right edge to resize it
 the console so it has the full width. On narrow screens the sidebar stacks
 above the plot.
 
-## What it does (v0.4)
+## What it does (v0.5)
 
 - **Sweep** — start/stop or center/span in MHz, points by model maximum /
   quick / custom, single or continuous. Two acquisition paths: `scan` (text,
@@ -139,7 +139,14 @@ above the plot.
   dashed noise-floor line at the sweep median), waterfall (rolling level
   history, colour range = the level axis), peak history (peak level and peak
   frequency over successive sweeps — the third panel of
-  `plotting_waterfall_realtime.py`), and the generator readout.
+  `plotting_waterfall_realtime.py`), **Compare** (live against the held trace
+  with the difference on a right-hand axis, mean Δ and max |Δ|), the
+  **Meter** (below), and the generator readout.
+- **Zero-span level meter** — a window view: one frequency read continuously
+  as a small `scanraw` around it (span 20 kHz – 5 MHz), with peak-in-span,
+  power mean, max/min since start, readings per second and a strip of the
+  last 240 readings. The tinySA twin of nanovna-web's CW meter; the device's
+  own screen is resumed when it stops.
 - **Trace math on the page** — max hold, min hold, power average over the
   last N sweeps (depth in Settings), display smoothing (median 5 or mean 5,
   from `filtering_scan_artifacts.py`; the recording keeps raw data), and
@@ -172,7 +179,8 @@ above the plot.
 - **Levels** — RBW (model-specific list, or auto), attenuation, LNA (Ultra),
   spur removal, the device's trace math (`calc`, with the current words:
   `quasi`, `aver`, and `log`/`lin` on the Ultra family), external gain/loss
-  (`ext_gain`). Sent as you change them. A rejected setting shows the device's
+  (`ext_gain`), and the **trigger** (`trigger auto|normal|single` and a level
+  in dBm). Sent as you change them. A rejected setting shows the device's
   reason instead of looking like success.
 - **Device readback** — *Use device sweep* copies the instrument's own
   start/stop/points into the page (`sweep`); *Read device trace* shows what's
@@ -189,9 +197,14 @@ above the plot.
   rendered sweep, with an optional caption bar (range, sweep, time, device).
   Encoded by the browser's own MediaRecorder: full colour, no library, a
   fraction of a GIF's size; plays in any browser, Slack and Discord.
-- **Export** — CSV (`Frequency_Hz,Signal_Strength_dBm`), plot PNG, and a
+- **Export** — CSV (`Frequency_Hz,Signal_Strength_dBm`), plot PNG, a
   screenshot of the device's own screen (`capture`, 480×320 on the Ultra,
-  320×240 on the Basic).
+  320×240 on the Basic), and **Copy as Python**: a `tsapython` script with the
+  current sweep and level settings, to the clipboard, for when a bench session
+  turns into an automation job.
+- **SD card** (Device tools, Ultra family) — list the card (`sd_list`, with a
+  pattern) and download any file (`sd_read`): the device's own screenshots and
+  CSVs, and a firmware dump made from its menu.
 - **Session & compare** — save/load the whole page state as JSON; load a
   two-column CSV as a dotted overlay under the live trace.
 - **Diagnostics** — one button runs a fixed set of commands (including the
@@ -219,9 +232,8 @@ above the plot.
   the page hasn't seen; overlay on/off; resume-on-disconnect; raw-byte echo
   for debugging framing. All remembered in the browser.
 
-Not yet: zero-span level meter, SD-card browser (`sd_list` / `sd_read`),
-trigger setup, generator frequency sweeps. Each is a sidebar section away;
-the device layer already has room for them.
+Not yet: generator frequency and level sweeps (`sweep start|stop` and
+`levelchange` in output mode).
 
 ## Supported hardware
 
@@ -298,9 +310,9 @@ js/
 tests/
   device.test.mjs          the device layer over the demo device (node --test 'tests/**/*.test.mjs')
   plot/
-    spectrum.js  waterfall.js  peakhist.js  palettes.js  common.js
+    spectrum.js  waterfall.js  peakhist.js  compare.js  palettes.js  common.js
   ui/
-    sidebar.js  console.js  panes.js  clip.js  settings.js  diagnostics.js
+    sidebar.js  console.js  panes.js  clip.js  meter.js  settings.js  diagnostics.js
     export.js  levels.js  generator.js  session.js  devicetools.js
     recorder.js
 ```

@@ -118,6 +118,10 @@
         <div class="field"><label for="extGain">External gain / loss</label>
           <div class="row"><input type="number" id="extGain" value="0" min="-100" max="100" step="0.1"><span class="suffix">dB</span><button class="btn small" id="extGainBtn">Set</button></div>
           <p class="hint">Negative for an attenuator in front of the input, positive for a preamp. <code>ext_gain</code>.</p></div>
+        <div class="field" style="margin-top:10px"><label for="trigSel">Trigger (<code>trigger</code>)</label>
+          <div class="row"><select id="trigSel" style="width:100%"><option value="auto">auto (free run)</option><option value="normal">normal</option><option value="single">single</option></select></div>
+          <div class="row" style="margin-top:6px"><input type="number" id="trigLevel" value="-40" min="-150" max="30" step="0.5"><span class="suffix">dBm</span><button class="btn small" id="trigLevelBtn">Set level</button></div>
+          <p class="hint">Normal and single wait for a signal above the level before a sweep completes; a sweep from this page waits with it (up to the read timeout). Setting a level also selects normal, as the firmware does.</p></div>
         <p class="hint" id="levelsStatus"></p>
       </div>
     </section>
@@ -194,6 +198,7 @@
           <button class="btn small" id="csvBtn" disabled>CSV</button>
           <button class="btn small" id="pngBtn" disabled>Plot PNG</button>
           <button class="btn small" id="shotBtn" disabled title="Reads the device's own screen over USB">Device screenshot</button>
+          <button class="btn small" id="pyBtn" title="A tsapython script for the current sweep and level settings, to the clipboard">Copy as Python</button>
         </div>
         <p class="hint">CSV is <code>Frequency_Hz,Signal_Strength_dBm</code>, the layout of tsapython's <code>save_scan_csv.py</code>, so files from either tool load in the other.</p>
       </div>
@@ -249,6 +254,11 @@
         <div class="field" style="margin-top:10px"><label for="calOutSel">Calibration output</label>
           <div class="row"><select id="calOutSel" style="width:100%"><option value="off">off</option><option>30</option><option>15</option><option>10</option><option>4</option><option>3</option><option>2</option><option>1</option></select><span class="suffix">MHz</span><button class="btn small" id="calOutBtn" disabled>Set</button></div>
           <p class="hint">The reference square wave on the CAL connector (<code>caloutput</code>) — handy for checking level accuracy with a cable to the input. Anything but <em>off</em> is an RF output: tick the arming box in the Generator section first (the same gate as <code>output on</code>).</p></div>
+        <span class="label group">SD card (Ultra family)</span>
+        <div class="row"><input type="text" id="sdPattern" value="*.*" placeholder="*.*" style="max-width:120px"><button class="btn small" id="sdListBtn" disabled>List files</button></div>
+        <table class="markers" id="sdTable" hidden style="margin-top:6px"><thead><tr><th>File</th><th>Size</th><th></th></tr></thead><tbody id="sdBody"></tbody></table>
+        <p class="hint" id="sdStatus"></p>
+        <p class="hint"><code>sd_list</code> / <code>sd_read</code>: screenshots and CSVs the device saved, and a firmware dump made from its own menu (<em>Config → Dump firmware</em>), downloaded over USB.</p>
         <p class="hint" id="toolsStatus"></p>
       </div>
     </section>
@@ -312,6 +322,19 @@
       </div>
       <div class="legend" id="legend"></div>
       <div class="panes" id="panes"></div>
+      <!-- the zero-span meter is a panel, not a drawing: it is moved into whichever window selects "Meter" -->
+      <div class="cw-panel meter-panel" id="meterPanel" hidden>
+        <div style="grid-column:1/-1" class="row">
+          <label for="meterFreq" class="suffix">Frequency</label><input type="number" id="meterFreq" value="433.92" min="0.1" step="any" style="max-width:150px"><span class="suffix">MHz</span>
+          <label for="meterSpan" class="suffix">Span</label><select id="meterSpan" style="min-width:110px"><option value="20">20 kHz</option><option value="200" selected>200 kHz</option><option value="1000">1 MHz</option><option value="5000">5 MHz</option></select>
+          <button class="btn primary" id="meterRun" aria-pressed="false" disabled>Start</button><span class="hint" id="meterRate"></span>
+        </div>
+        <div><div class="lbl">Frequency</div><div class="big" id="meterF" style="font-size:1.5rem;color:var(--ink)">—</div></div>
+        <div><div class="lbl">Peak in span</div><div><span class="big" id="meterPeak">—</span><span class="unit">dBm</span></div></div>
+        <div><div class="lbl">Mean (power)</div><div><span class="big" id="meterMean">—</span><span class="unit">dBm</span></div></div>
+        <div><div class="lbl">Max / min since start</div><div><span class="big" id="meterMax" style="font-size:1.5rem">—</span><span class="unit">/</span><span class="big" id="meterMin" style="font-size:1.5rem">—</span><span class="unit">dBm</span></div></div>
+        <div style="grid-column:1/-1"><div class="lbl">Last 240 readings (peak)</div><canvas id="meterHist" style="width:100%;height:90px;display:block"></canvas></div>
+      </div>
     </div>
 
     <section class="markers-panel" aria-label="Markers">

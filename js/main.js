@@ -10,6 +10,8 @@ import { renderWaterfall, WATERFALL_ROWS } from './plot/waterfall.js';
 import { renderPeakHistory } from './plot/peakhist.js';
 import { createPanes } from './ui/panes.js';
 import { createClip } from './ui/clip.js';
+import { initMeter } from './ui/meter.js';
+import { renderCompare } from './plot/compare.js';
 import { initGenerator, renderGenerator } from './ui/generator.js';
 import { buildLut, cssGradient } from './plot/palettes.js';
 import { cssVar } from './plot/common.js';
@@ -23,7 +25,7 @@ import { initDeviceTools } from './ui/devicetools.js';
 import { initLevels } from './ui/levels.js';
 import { createRecorder } from './ui/recorder.js';
 
-const APP_VERSION = '0.4.0';
+const APP_VERSION = '0.5.0';
 const PEAK_HISTORY = 600;
 const SMOOTH = ['off', 'median5', 'mean5'];
 const $ = id => document.getElementById(id);
@@ -47,8 +49,8 @@ const tools = initDeviceTools($('toolsSection'), () => state.sa, con);
 const levels = initLevels($('levelsSection'), () => state.sa, con);
 const generator = initGenerator($('genSection'), () => state.sa, con);
 generator.onChange = () => { chart.dirty = true; };
-const VIEWS = { spectrum: 'Spectrum', waterfall: 'Waterfall', peakhist: 'Peak history', generator: 'Generator' };
-const panes = createPanes($('panes'), VIEWS, () => { wirePanes(); ensureGenPane(); buildLegend(); chart.dirty = true; },
+const VIEWS = { spectrum: 'Spectrum', waterfall: 'Waterfall', peakhist: 'Peak history', compare: 'Compare', meter: 'Meter', generator: 'Generator' };
+const panes = createPanes($('panes'), VIEWS, () => { wirePanes(); ensureGenPane(); placeMeter(); buildLegend(); chart.dirty = true; },
   { key: 'tinysa-web.panes', defaults: ['spectrum', 'waterfall', 'peakhist', 'generator'] });
 /** In generator mode one window always shows the generator. */
 function ensureGenPane() { if (state.mode === 'tx' && !panes.panes.some(p => p.view === 'generator')) panes.setView(0, 'generator'); }
@@ -70,6 +72,8 @@ function currentModel() { return state.sa ? state.sa.model : ($('modelSel').valu
 function setEnabled(on) {
   ['singleBtn', 'contBtn', 'diagBtn', 'shotBtn', 'devSweepBtn', 'devDataBtn', 'sessSave', 'syncMarkersBtn', 'devPeakBtn', 'freezeBtn', 'modeTx', 'scaleChkBtn', 'calStateBtn'].forEach(id => $(id).disabled = !on);
   con.setEnabled(on); tools.setEnabled(on); levels.setEnabled(on); generator.setEnabled(on && state.mode === 'tx');
+  $('sdListBtn').disabled = !on || !state.sa?.has('sd_list'); if (!on) { $('sdTable').hidden = true; $('sdStatus').textContent = ''; }
+  meter.setEnabled(on && state.mode === 'rx');
   $('battBadge').hidden = !on; if (!on) { $('battBadge').textContent = '—'; }
   $('demoBtn').disabled = on && !state.demo;
   $('demoBtn').classList.toggle('demo-active', on && state.demo); $('demoBtn').setAttribute('aria-pressed', String(on && state.demo));
@@ -198,6 +202,8 @@ function renderPane(pane) {
   const v = pane.view, sw = state.sweep, ov = settings.overlayShow && state.overlay ? state.overlay.sweep : null;
   if (v === 'generator') { renderGenerator(ctx, W, H, generator.gen); return null; }
   if (v === 'peakhist') { renderPeakHistory(ctx, W, H, state.peaks, levelRange()); return null; }
+  if (v === 'meter') return null;
+  if (v === 'compare' && sw) return renderCompare(ctx, W, H, sw, state.held, levelRange());
   if (!sw) { ctx.font = '13px ' + cssVar('--font'); ctx.fillStyle = cssVar('--ink-3'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(state.sa ? (state.mode === 'tx' ? 'Generator mode — switch to Analyzer to sweep.' : 'Run a sweep.') : 'Connect a tinySA or try the demo.', W / 2, H / 2); return null; }
   const hover = chart.hover;
   let g;
@@ -232,7 +238,7 @@ function wirePanes() {
   for (const pane of panes.panes) {
     if (pane.wired) continue; pane.wired = true; resizer.observe(pane.canvas);
     pane.canvas.addEventListener('pointermove', e => {
-      if (!['spectrum', 'waterfall'].includes(pane.view)) return;
+      if (!['spectrum', 'waterfall', 'compare'].includes(pane.view)) return;
       const i = pointAt(pane, e); if (i !== chart.hover) { chart.hover = i; chart.dirty = true; }
       if (i == null) { pane.tip.style.display = 'none'; return; }
       const sw = state.sweep, g = chart.geoms[pane.i], L = state.layers;
@@ -240,7 +246,7 @@ function wirePanes() {
       pane.tip.textContent = `${fmtHz(sw.f[i])}  ${sw.dbm[i].toFixed(1)} dBm` + (L.max ? `  max ${L.max[i].toFixed(1)}` : '') + (L.min ? `  min ${L.min[i].toFixed(1)}` : '') + (L.avg ? `  avg ${L.avg[i].toFixed(1)}` : '');
     });
     pane.canvas.addEventListener('pointerleave', () => { chart.hover = null; chart.dirty = true; pane.tip.style.display = 'none'; });
-    pane.canvas.addEventListener('click', e => { if (!['spectrum', 'waterfall'].includes(pane.view)) return; const i = pointAt(pane, e); if (i == null) return; addMarker(state.sweep.f[i]); });
+    pane.canvas.addEventListener('click', e => { if (!['spectrum', 'waterfall', 'compare'].includes(pane.view)) return; const i = pointAt(pane, e); if (i == null) return; addMarker(state.sweep.f[i]); });
   }
   document.querySelectorAll('[data-layout]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.layout === panes.layout)));
 }
@@ -276,6 +282,7 @@ async function setMode(mode, silent) {
   document.querySelector('[aria-label="Trace math"]').hidden = state.mode === 'tx';
   ['singleBtn', 'contBtn', 'devSweepBtn', 'devDataBtn'].forEach(id => $(id).disabled = !state.sa || state.mode === 'tx');
   generator.setEnabled(!!state.sa && state.mode === 'tx');
+  meter.setEnabled(!!state.sa && state.mode === 'rx');
   chart.dirty = true;
 }
 
@@ -467,6 +474,58 @@ const clip = createClip(
     show: replayFrame, exit: replayExit,
     stamp: i => { const s = i == null ? state.sweep : recorder.sweeps[i]; if (!s) return 'tinySA Web'; return `${fmtHz(s.start)} – ${fmtHz(s.stop)} · ${s.pts} pts · ${i == null ? 'live' : `sweep ${i + 1}/${recorder.sweeps.length}`} · ${new Date(s.t).toLocaleTimeString()} · ${state.sa?.ident.modelName || state.sa?.env.name || 'tinySA'}`; },
     download, log: t => con.dim(t) });
+// ---------------------------------------------------------------- zero-span meter (a window view that is a panel)
+const meterPanel = $('meterPanel'), meterHome = meterPanel.parentElement;
+const meter = initMeter(meterPanel, () => state.sa, con, {
+  onStart() { if (state.busy || state.mode === 'tx') { con.err('meter: stop the sweep first'); return false; } stopContinuous(); state.busy = true; $('singleBtn').disabled = true; $('contBtn').disabled = true; return true; },
+  onStop() { state.busy = false; $('singleBtn').disabled = !state.sa; $('contBtn').disabled = !state.sa || state.mode === 'tx'; },
+});
+function placeMeter() {
+  const owners = panes.panes.filter(p => p.view === 'meter');
+  for (const p of panes.panes) { if (p.slot.firstChild !== meterPanel) p.slot.innerHTML = ''; }
+  if (!owners.length) { if (meterPanel.parentElement !== meterHome) meterHome.appendChild(meterPanel); meterPanel.hidden = true; meter.stop(); return; }
+  if (owners[0].slot.firstChild !== meterPanel) { owners[0].slot.innerHTML = ''; owners[0].slot.appendChild(meterPanel); }
+  meterPanel.hidden = false;
+  for (const p of owners.slice(1)) p.slot.innerHTML = '<div class="pane-note">The meter is open in another window.</div>';
+}
+
+// ---------------------------------------------------------------- trigger, SD card, copy as Python
+$('trigSel').addEventListener('change', () => levels.send(`trigger ${$('trigSel').value}`, sa => sa.trigger($('trigSel').value)));
+$('trigLevelBtn').addEventListener('click', () => { const v = parseFloat($('trigLevel').value); levels.send(`trigger ${v}`, sa => sa.trigger(v)).then(() => { $('trigSel').value = 'normal'; }); });
+$('sdListBtn').addEventListener('click', async () => {
+  const sa = state.sa; if (!sa || state.busy) return; state.busy = true; $('sdStatus').textContent = 'listing…';
+  try {
+    const files = await sa.sdList($('sdPattern').value.trim() || '');
+    const body = $('sdBody'); body.innerHTML = '';
+    for (const f of files) { const tr = document.createElement('tr'); const kb = f.size >= 1024 ? (f.size / 1024).toFixed(1) + ' kB' : f.size + ' B'; tr.innerHTML = `<td>${f.name.replace(/[<>&]/g, '')}</td><td>${kb}</td><td><button type="button" class="btn small" data-sd="${encodeURIComponent(f.name)}">Download</button></td>`; body.appendChild(tr); }
+    $('sdTable').hidden = !files.length; $('sdStatus').textContent = files.length ? `${files.length} file(s)` : 'no files match';
+  } catch (e) { $('sdStatus').textContent = e.message; con.err(e.message); }
+  finally { state.busy = false; }
+});
+$('sdBody').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-sd]'); if (!b || !state.sa || state.busy) return;
+  const name = decodeURIComponent(b.dataset.sd); state.busy = true; b.disabled = true; $('sdStatus').textContent = `reading ${name}…`;
+  try { const t0 = performance.now(); const data = await state.sa.sdRead(name); download(name, new Blob([data], { type: 'application/octet-stream' })); $('sdStatus').textContent = `${name}: ${data.length} bytes in ${((performance.now() - t0) / 1000).toFixed(1)} s`; con.dim(`sd_read ${name}: ${data.length} bytes`); }
+  catch (err) { $('sdStatus').textContent = err.message; con.err(err.message); }
+  finally { state.busy = false; b.disabled = false; }
+});
+function pythonSnippet() {
+  const { start, stop, pts, method } = sweepParams();
+  const L = [];
+  L.push('# generated by tinySA Web: the current sweep and level settings as a tsapython script');
+  L.push('from tsapython import tinySA', '', 'tsa = tinySA()', 'found, connected = tsa.autoconnect()', 'assert connected, "no tinySA found"', `print(tsa.profile.name, tsa.firmwareBuild)`, '');
+  const rbw = $('rbwSel').value, att = $('attSel').value, calc = $('calcSel').value, gain = parseFloat($('extGain').value) || 0;
+  if (rbw !== 'auto') L.push(`tsa.rbw(${rbw})`); if (att !== 'auto') L.push(`tsa.attenuate(${att})`);
+  if ($('lnaChk').checked) L.push("tsa.lna('on')"); if ($('spurChk').checked) L.push("tsa.spur('on')"); if (calc !== 'off') L.push(`tsa.calc('${calc}')`); if (gain) L.push(`tsa.ext_gain(${gain})`);
+  if ($('trigSel').value !== 'auto') L.push(`tsa.trigger('${$('trigSel').value}')`);
+  L.push('', `start, stop, pts = ${start}, ${stop}, ${pts}`);
+  if (method === 'scanraw') L.push('raw = tsa.scan_raw(start, stop, pts)          # one frame: b\'{\' + pts * (b\'x\' + uint16) ', 'import struct', "vals = struct.unpack('<' + 'xH' * pts, raw[1:1 + 3 * pts])", `dbm = [v / 32 - ${state.sa ? state.sa.scale : 174} for v in vals]            # scale from the profile`, 'tsa.resume()');
+  else L.push('data = tsa.scan(start, stop, pts, outmask=3)   # text: "freq level 0.0" per line', "rows = [l.split() for l in data.decode().splitlines() if l.strip()]", 'freqs = [float(r[0]) for r in rows]', "dbm = [float(r[1].replace(':', '10')) for r in rows]");
+  L.push('', 'print(len(dbm), "points, max", max(dbm), "dBm")', 'tsa.disconnect()', '');
+  return L.join('\n');
+}
+$('pyBtn').addEventListener('click', async () => { const t = pythonSnippet(); try { await navigator.clipboard.writeText(t); con.dim('copied a tsapython script to the clipboard'); } catch { download(`tinysa-sweep-${stamp()}.py`, new Blob([t], { type: 'text/x-python' })); } });
+
 $('recLoadBtn').addEventListener('click', async () => {
   try { const f = await pickFile('.json,application/json'); if (!f) return; const n = recorder.loadJson(JSON.parse(await f.text())); con.dim(`loaded recording: ${n} sweeps from ${f.name}`); clip.refresh(); }
   catch (e) { con.err('load recording: ' + e.message); }
@@ -480,4 +539,4 @@ window.addEventListener('beforeunload', e => { if (recorder.on && recorder.sweep
 refreshRec();
 
 $('appVersion').textContent = 'v' + APP_VERSION;
-applyModel(DEFAULT_MODEL); syncFreqMode(); wirePanes(); renderMarkers(); setOverlay(null); buildLegend(); tick();
+applyModel(DEFAULT_MODEL); syncFreqMode(); wirePanes(); placeMeter(); renderMarkers(); setOverlay(null); buildLegend(); tick();

@@ -57,6 +57,9 @@ on; where the source is a real capture it says so.
 | `marker` (no arguments) | one line per enabled marker — **format assumed**: `id index frequency level` | device markers on the plot |
 | `mode [low] input\|output` (Ultra family) / `mode low\|high input\|output` (Basic), `sweep cw {Hz}`, `level dBm`, `modulation off\|am\|fm` (Ultra) / `off\|am\|nfm\|wfm\|extern` (Basic), `modulation freq\|depth\|deviation {n}`, `output on\|off[\|normal\|mixer]`, `mode … input` | nothing (a `usage:` line if rejected). The 2020 keywords `AM_1kHz`, `AM_10Hz`, `NFM`, `WFM` are gone | Generator mode |
 | `waitscan [n]` | nothing; returns after n sweeps (v1.4-216+) | available to callers of `sa.waitscan()` |
+| `trigger auto\|normal\|single`, `trigger {dBm}` | nothing (`trigger {value}` / `trigger {auto\|normal\|single}` usage lines, without the `usage:` prefix, if rejected). A level also selects normal | Levels → Trigger |
+| `sd_list [pattern]` | `NAME SIZE` per line (the card's directory order); `err: (n)` if no card | Device tools → SD card |
+| `sd_read {name}` | binary: a 4-byte little-endian length, then that many bytes, then the prompt; `err: (4) no file` as text instead | Device tools → SD card (download) |
 | `help` | `commands: …` and `Other commands: …` | which commands this firmware has (`sa.has(cmd)`) |
 | `freq_corr`, `actual_freq`, `zero`, `vbat_offset` | one line each (`0 ppb`, `30000000`, `174dBm`, `300` on the demo) | Device tools → Calibration state |
 | `pause`, `resume` | nothing | freeze toggle; after `scanraw` |

@@ -12,7 +12,7 @@ export const DIAG_COMMANDS = ['version', 'info', 'deviceid', 'vbat', 'status', '
 export async function collectDiagnostics(sa, sweepParams, onProgress) {
   const link = sa.link;
   const d = {
-    tool: 'tinysa-web', version: '0.4.0', when: new Date().toISOString(), userAgent: navigator.userAgent,
+    tool: 'tinysa-web', version: '0.5.0', when: new Date().toISOString(), userAgent: navigator.userAgent,
     port: link.info(), modelSelected: sa.model, modelDetected: detectModel(sa.ident.version, sa.ident.info), scale: sa.scale, ident: { ...sa.ident, help: undefined }, commands: [],
   };
   const summary = () => d.commands.map(r => `${r.cmd}\n    ${r.error ? 'ERROR ' + r.error : `${Math.round(r.ms)} ms, ${r.lines ?? r.bytes ?? 0} ${r.bytes != null ? 'bytes' : 'lines'}${r.promptCount != null ? `, ${r.promptCount}×ch>` : ''}${r.parsedOk != null ? (r.parsedOk ? ', parsed OK' : ', PARSE FAILED') : ''}`}`).join('\n');

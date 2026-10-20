@@ -23,6 +23,11 @@ export class DemoLink extends ShellLink {
     this.mode = 'low input'; this.outputOn = false; this.genFreq = 433.92e6; this.genLevel = -6; this.modulation = 'off';
     this.modFreq = 1000; this.modDepth = 50; this.modDeviation = 3000;
     this.lastImmediateSetter = 0;      // when output/modulation last ran: the firmware's redraw window (PROTOCOL.md)
+    this.trigger = 'auto'; this.triggerLevel = -40;
+    // a small SD card: a config, a CSV the device wrote, and a 'firmware dump'
+    const csv = 'frequency,level\n' + Array.from({ length: 50 }, (_, i) => `${1e6 + i * 2e6},${(-90 + Math.random() * 5).toFixed(1)}`).join('\n') + '\n';
+    const bin = new Uint8Array(4096); for (let i = 0; i < bin.length; i++) bin[i] = (i * 7 + 3) & 255;
+    this.sdFiles = [{ name: 'SETTING.CFG', data: this.enc.encode('mode low input\nrbw auto\n') }, { name: 'SA_0001.CSV', data: this.enc.encode(csv) }, { name: 'DUMP0001.BIN', data: bin }];
   }
   static get COMMAND_TIMEOUT_MS() { return 3000; }     // real firmware: 20000
   async open() {}
@@ -91,6 +96,16 @@ export class DemoLink extends ShellLink {
       case 'lna': if (!['on', 'off'].includes((a[0] || '').toLowerCase())) body = 'usage: lna off|on'; else this.lnaOn = a[0] === 'on'; break;
       case 'spur': if (!['on', 'off', 'auto'].includes((a[0] || '').toLowerCase())) body = 'usage: spur off|on|auto'; else this.spurOn = a[0] === 'on'; break;
       case 'waitscan': delay = 400; break;
+      case 'trigger': { const w = (a[0] || '').toLowerCase(); if (['auto', 'normal', 'single'].includes(w)) this.trigger = w; else if (Number.isFinite(+w) && a.length) { this.trigger = 'normal'; this.triggerLevel = +w; } else body = 'trigger {value}\ntrigger {auto|normal|single}'; break; }
+      case 'sd_list': { const pat = a[0] || '*.*'; const re = new RegExp('^' + pat.replace(/[.]/g, '\\.').replace(/\*/g, '.*').replace(/\?/g, '.') + '$', 'i'); body = this.sdFiles.filter(f => re.test(f.name)).map(f => `${f.name} ${f.data.length}`).join('\n'); break; }
+      case 'sd_read': {
+        const f = this.sdFiles.find(x => x.name.toLowerCase() === (a[0] || '').toLowerCase());
+        if (!a.length) { body = 'usage: sd_read {filename}'; break; }
+        if (!f) { body = 'err: (4) no file'; break; }
+        const head = this.enc.encode(cmd + '\r\n'), len = new Uint8Array(4); let n = f.data.length; for (let i = 0; i < 4; i++) { len[i] = n & 255; n >>>= 8; }
+        const tail = this.enc.encode('ch>'); const all = new Uint8Array(head.length + 4 + f.data.length + tail.length);
+        all.set(head); all.set(len, head.length); all.set(f.data, head.length + 4); all.set(tail, head.length + 4 + f.data.length);
+        this._send(all, 20, 2048); return Promise.resolve(); }
       case 'calc': { const ok = ['off', 'minh', 'maxh', 'maxd', 'aver4', 'aver16', 'aver', 'quasi', 'log', 'lin']; if (!ok.includes((a[0] || '').toLowerCase())) body = 'usage: calc off|minh|maxh|maxd|aver4|aver16|aver|quasi|log|lin'; else this.calcMode = a[0]; break; }
       case 'ext_gain': if (!a.length || !Number.isFinite(+a[0])) body = 'usage: ext_gain -100..100'; else this.extGain = +a[0]; break;
       case 'ultra': break;

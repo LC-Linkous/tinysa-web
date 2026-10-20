@@ -120,3 +120,31 @@ test('scan and scanRaw still agree; unbuf 2 refused', async () => {
   assert.ok(Math.abs(a.dbm[10] - b.dbm[10]) < 6);
   await rejects(sa.scanRaw(1e6, 2e6, 5, { unbuf: 2 }), STATUS.BLOCKED);
 });
+
+test('trigger: words and a level', async () => {
+  const sa = await connected();
+  await sa.trigger('single'); assert.equal(sa.link.trigger, 'single');
+  await sa.trigger(-52.5); assert.equal(sa.link.triggerLevel, -52.5); assert.equal(sa.link.trigger, 'normal');
+  await rejects(sa.trigger('loud'), STATUS.BLOCKED);
+});
+
+test('measureAt: peak and mean at a frequency from a small scanraw', async () => {
+  const sa = await connected();
+  const m = await sa.measureAt(433.92e6);
+  assert.equal(m.f, 433.92e6);
+  assert.ok(m.peak > -60 && m.peak >= m.mean, `peak ${m.peak} mean ${m.mean}`);
+});
+
+test('SD card: list, read a file by length prefix, errors as DeviceError', async () => {
+  const sa = await connected();
+  const files = await sa.sdList();
+  assert.deepEqual(files.map(f => f.name), ['SETTING.CFG', 'SA_0001.CSV', 'DUMP0001.BIN']);
+  const only = await sa.sdList('*.BIN'); assert.equal(only.length, 1);
+  const data = await sa.sdRead('DUMP0001.BIN');
+  assert.equal(data.length, 4096); assert.equal(data[0], 3); assert.equal(data[1], 10);     // (i*7+3)&255
+  const txt = new TextDecoder().decode(await sa.sdRead('SETTING.CFG')); assert.ok(txt.startsWith('mode low input'));
+  await rejects(sa.sdRead('NOPE.BIN'), STATUS.REFUSED);
+  await rejects(sa.sdRead('bad name.bin'), STATUS.BLOCKED);
+  sa.select = null; sa.model = 'TINYSA_BASIC'; sa.deviceCommands = null;
+  await rejects(sa.sdList(), STATUS.BLOCKED);                                              // Basic has no card
+});

@@ -7,7 +7,7 @@
 export function initLevels(root, getSa, con) {
   const status = root.querySelector('#levelsStatus');
   const rbw = root.querySelector('#rbwSel'), att = root.querySelector('#attSel'), lna = root.querySelector('#lnaChk'), spur = root.querySelector('#spurChk'), calc = root.querySelector('#calcSel'), gain = root.querySelector('#extGain'), gainBtn = root.querySelector('#extGainBtn');
-  const controls = root.querySelectorAll('select, input, button');
+  const controls = root.querySelectorAll('select, input, button');   // includes the trigger controls
   async function send(label, fn) {
     const sa = getSa(); if (!sa) return;
     controls.forEach(c => c.disabled = true); status.textContent = `${label}…`; status.className = 'hint';
@@ -27,5 +27,5 @@ export function initLevels(root, getSa, con) {
   gainBtn.addEventListener('click', () => send(`ext_gain ${gain.value}`, sa => sa.extGain(parseFloat(gain.value) || 0)));
   function setEnabled(on) { const sa = getSa(); controls.forEach(c => c.disabled = !on); if (on && sa) lna.disabled = !sa.env.lna; }
   setEnabled(false);
-  return { setEnabled, fillRbw, reset() { rbw.value = 'auto'; att.value = 'auto'; lna.checked = false; spur.checked = false; calc.value = 'off'; status.textContent = ''; } };
+  return { send, setEnabled, fillRbw, reset() { rbw.value = 'auto'; att.value = 'auto'; lna.checked = false; spur.checked = false; calc.value = 'off'; status.textContent = ''; } };
 }

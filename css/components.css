@@ -84,3 +84,6 @@ code { font-family: var(--mono); font-size: .9em; background: var(--screen); bor
 .console .bar select { padding: 3px 6px; font-size: .85rem; }
 .hint.err { color: var(--err); }
 .badge.rec { border-color: var(--err); color: var(--err); animation: pulse 1.2s ease-in-out infinite; }
+
+/* the zero-span meter reuses the cw-panel layout; its readouts use the trace colour */
+.meter-panel .big { color: var(--trace); }

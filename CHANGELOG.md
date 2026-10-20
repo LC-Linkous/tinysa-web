@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.5.0 — meter, compare, trigger, SD card
+
+- **Zero-span level meter** as a window view: one frequency read continuously
+  (`scanraw` around it, span 20 kHz – 5 MHz), peak / mean / max / min, readings
+  per second, a strip of the last 240 readings. Takes the port like a
+  continuous sweep and resumes the device screen on stop.
+- **Compare** view: live against the held trace, with live − held on a
+  right-hand axis, mean Δ and max |Δ|. Hover and markers work in it.
+- **Trigger** in Levels: `trigger auto|normal|single` and a level in dBm.
+- **SD card** in Device tools (Ultra family): `sd_list` with a pattern,
+  download any file with `sd_read` (length-prefixed binary; `err:` replies
+  and `sd_read?` are reported, not read as a length).
+- **Copy as Python** in Export: a tsapython 4.0.0 script for the current
+  sweep and level settings.
+- Device layer: `trigger()`, `measureAt()`, `sdList()`, `sdRead()`;
+  `shell-link.js` gained a `lengthPrefix` option on `commandBinary` (applied to
+  nanovna-web as well). Demo device: a three-file SD card, `trigger`.
+- Tests: 14 device-layer tests.
+
 ## v0.4.0 — replay and clips
 
 - **Replay**: a slider and Play / speed (0.5–8×) in the Recording section
