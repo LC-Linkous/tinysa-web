@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.5.1 — own state, stricter echo
+
+- `<html data-app="tinysa-web">`: the sidebar's open section and width and
+  the console's height are stored under this tool's own localStorage keys,
+  and console logs download as `tinysa-console-…txt`. Before, the keys were
+  `nanovna-web.*`, shared with nanovna-web when both are served from one
+  origin (lc-linkous.github.io), so one page's sidebar state leaked into
+  the other's.
+- Console framing: a command's echo must be a whole line. A substring match
+  let a stale `sweeptime` line pass as the echo of `sweep` after a timeout,
+  and the leftovers became the reply.
+- The kit files are no longer kept byte-identical to nanovna-web.
+
 ## v0.5.0 — meter, compare, trigger, SD card
 
 - **Zero-span level meter** as a window view: one frequency read continuously

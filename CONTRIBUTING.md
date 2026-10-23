@@ -40,9 +40,11 @@ short version:
 - `css/theme.css` — every colour. The trace colours `--trace` / `--maxhold` / `--minhold` / `--avg` are
   the only colours data may use.
 
-Files listed as *unchanged* in the README's *Shared with nanovna-web* table
-must stay byte-identical to their copies in that repo; a fix to one of them
-goes to both repos in the same change.
+The files listed in the README's *Shared with nanovna-web* table began as
+copies of that repo's. They are this repo's own now: change them here as
+this tool needs. `<html data-app="tinysa-web">` scopes the sidebar and
+console localStorage keys and the console download name, so this page and
+nanovna-web keep separate state when hosted on one origin.
 
 A fix to the driver should be reproducible through `DemoLink` if at all
 possible: if a real device does something odd, teach the demo to do it too, so

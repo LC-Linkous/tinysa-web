@@ -25,7 +25,7 @@ import { initDeviceTools } from './ui/devicetools.js';
 import { initLevels } from './ui/levels.js';
 import { createRecorder } from './ui/recorder.js';
 
-const APP_VERSION = '0.5.0';
+const APP_VERSION = '0.5.1';
 const PEAK_HISTORY = 600;
 const SMOOTH = ['off', 'median5', 'mean5'];
 const $ = id => document.getElementById(id);
